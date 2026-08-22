@@ -55,6 +55,7 @@ npm start              # build frontend + backend, then serve everything on :400
 | `npm run dev` | API (tsx watch) and Vite together |
 | `npm run dev:api` / `dev:web` | Either half on its own |
 | `npm run build` | Typecheck + build the frontend to `dist/` |
+| `npm run deploy` | Pull, migrate, rebuild; `-- --restart` also restarts the server |
 | `npm run start:public` | Build, serve, and open a Cloudflare Tunnel (see below) |
 | `npm run tunnel` | Tunnel only, against an already-running server |
 | `npm run db:migrate` | Apply pending SQL migrations via `DIRECT_URL` |
@@ -88,9 +89,17 @@ Two things this required:
 ## Shipping an update
 
 ```bash
-git commit -m "..." && git push     # your change
-npm start                           # rebuild + restart on the server
+git commit -m "..." && git push     # on your machine
+npm run deploy -- --restart         # on the machine serving the app
 ```
+
+**A commit does not reach anyone by itself, and neither does a push.** The update prompt is
+driven by `GET /api/version`, which reports the build the *server* is running - and the server
+only learns about a new commit when the code is pulled, rebuilt and restarted. `npm run deploy`
+is that step: pull, install if dependencies moved, migrate, build, and (with `--restart`) swap
+the running process. Migrations run before the new build goes live, which is safe precisely
+because they are additive - the old build keeps serving against the migrated database until
+the moment it is replaced.
 
 Each build is stamped with the git commit and a timestamp (`scripts/build-info.mjs` →
 `build-info.json`). Vite bakes that into the bundle; Express serves it at `GET /api/version`.
