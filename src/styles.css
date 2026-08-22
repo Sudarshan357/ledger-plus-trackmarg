@@ -1,0 +1,1647 @@
+/*
+ * Ledger+ design system.
+ *
+ * Deliberately small and flat: a partnership ledger is used one-handed, in a workshop, to
+ * record one number. Every rule here exists to keep a figure readable and a tap target big,
+ * not to decorate. Colour carries meaning and nothing else - green is money in, red is money
+ * out, navy is "this is the primary thing on the screen".
+ */
+
+/*
+ * Colour lives entirely in these tokens, and every rule below reads them. That is what makes
+ * the dark theme a palette swap rather than a second stylesheet: nothing further down the
+ * file knows which theme is active.
+ *
+ * Three states, in the order they resolve:
+ *   :root                                        light, the default
+ *   prefers-color-scheme: dark (unless opted out) follow the phone
+ *   [data-theme="dark"] / ["light"]              an explicit choice, which always wins
+ */
+:root {
+  /* `color-scheme` is not decoration: it tells the browser to render native controls -
+     the date pickers on Add Transaction and the Ledger filter, scrollbars, form fields -
+     in the matching theme. Without it a dark page gets stark white date pickers. */
+  color-scheme: light;
+
+  /* Filled, high-emphasis surfaces (primary button, FAB, active pill) and the text on them.
+     In dark these invert to a near-white fill, which reads as more deliberate than a muted
+     navy button that would nearly vanish against a dark background. */
+  --primary: #111827;
+  --on-primary: #ffffff;
+  /* Emphatic foreground - icons and labels that carry weight without being filled. */
+  --strong: #111827;
+
+  --green: #16a34a;
+  --green-tint: #dcfce7;
+  --red: #dc2626;
+  --red-tint: #fee2e2;
+  --warn-bg: #fff3e0;
+  --warn-fg: #b45309;
+
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  /* Recessed chips sitting inside a surface: mini tiles, icon squares, badges. */
+  --surface-sunken: #f1f2f5;
+  --surface-sunken-2: #f4f5f8;
+  /* The trough of a segmented control or toggle. */
+  --track: #eceef2;
+  --avatar-bg: #e3e7ee;
+  --border: #e8eaee;
+  --border-strong: #d6dae1;
+
+  --text: #111827;
+  --text-muted: #6b7280;
+  --text-faint: #9ca3af;
+
+  /* The hero is dark in BOTH themes, so its text tokens are always light. In dark it gains a
+     hairline base so it still separates from the page behind it. */
+  --hero-from: #232c3b;
+  --hero-via: #111827;
+  --hero-to: #2b3444;
+  --hero-text: #ffffff;
+  --hero-dim: rgba(255, 255, 255, 0.72);
+  --hero-dimmer: rgba(255, 255, 255, 0.66);
+  --hero-faint: rgba(255, 255, 255, 0.62);
+  --hero-chip: rgba(255, 255, 255, 0.12);
+  --hero-chip-border: rgba(255, 255, 255, 0.2);
+  --hero-rule: rgba(255, 255, 255, 0.16);
+  --hero-base: transparent;
+
+  --chart-bar: #4b5768;
+  --chart-grid: #eef0f3;
+  --chart-axis: #d6dae1;
+  --chart-label: #6b7280;
+  --chart-tick: #9ca3af;
+
+  /* A translucent scrim laid ON a --primary fill (the avatar inside a selected
+     partner chip). It has to flip with the fill, not stay white. */
+  --on-primary-veil: rgba(255, 255, 255, 0.2);
+
+  /* --bg at zero alpha. Must be restated per theme: a gradient interpolates the
+     colour as well as the alpha, so fading from the wrong hue leaves a haze. */
+  --bg-fade: rgba(246, 247, 249, 0);
+
+  --overlay: rgba(17, 24, 39, 0.45);
+  --fab-shadow: 0 8px 22px rgba(17, 24, 39, 0.32);
+
+  --radius-lg: 18px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+  --radius-pill: 999px;
+
+  --shell: 520px;
+  --nav-height: 62px;
+
+  /* Bottom nav sits above the home indicator on iOS; content must clear both. */
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+}
+
+/* Only the colour tokens are redefined below - never a layout value, so the two themes can
+   never drift apart structurally. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+
+    --primary: #e9edf5;
+    --on-primary: #0d1117;
+    --strong: #e6edf3;
+
+    /* Lifted and desaturated a touch: #16a34a and #dc2626 are tuned for white paper and go
+       muddy on a dark ground, where the eye needs more luminance to read colour at all. */
+    --green: #3fb950;
+    --green-tint: rgba(63, 185, 80, 0.16);
+    --red: #f85149;
+    --red-tint: rgba(248, 81, 73, 0.16);
+    --warn-bg: rgba(227, 160, 8, 0.16);
+    --warn-fg: #e3a008;
+
+    /* Deep slate, never pure black - #000 makes the elevation between page and card
+       disappear and gives the OLED smearing that looks cheap while scrolling. */
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface-sunken: #1c232d;
+    --surface-sunken-2: #1a212a;
+    --track: #1c232d;
+    --avatar-bg: #273041;
+    --border: #232b36;
+    --border-strong: #303a48;
+
+    --text: #e6edf3;
+    --text-muted: #98a4b3;
+    --text-faint: #6e7c8c;
+
+    --hero-from: #1b2534;
+    --hero-via: #131a24;
+    --hero-to: #202b3b;
+    --hero-text: #f0f4f9;
+    --hero-base: #232b36;
+
+    --chart-bar: #6f819c;
+    --chart-grid: #232b36;
+    --chart-axis: #303a48;
+    --chart-label: #98a4b3;
+    --chart-tick: #6e7c8c;
+
+    --on-primary-veil: rgba(0, 0, 0, 0.1);
+    --bg-fade: rgba(13, 17, 23, 0);
+    --overlay: rgba(0, 0, 0, 0.62);
+    --fab-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* An explicit choice wins over the system preference, in both directions. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --primary: #e9edf5;
+  --on-primary: #0d1117;
+  --strong: #e6edf3;
+
+  --green: #3fb950;
+  --green-tint: rgba(63, 185, 80, 0.16);
+  --red: #f85149;
+  --red-tint: rgba(248, 81, 73, 0.16);
+  --warn-bg: rgba(227, 160, 8, 0.16);
+  --warn-fg: #e3a008;
+
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-sunken: #1c232d;
+  --surface-sunken-2: #1a212a;
+  --track: #1c232d;
+  --avatar-bg: #273041;
+  --border: #232b36;
+  --border-strong: #303a48;
+
+  --text: #e6edf3;
+  --text-muted: #98a4b3;
+  --text-faint: #6e7c8c;
+
+  --hero-from: #1b2534;
+  --hero-via: #131a24;
+  --hero-to: #202b3b;
+  --hero-text: #f0f4f9;
+  --hero-base: #232b36;
+
+  --chart-bar: #6f819c;
+  --chart-grid: #232b36;
+  --chart-axis: #303a48;
+  --chart-label: #98a4b3;
+  --chart-tick: #6e7c8c;
+
+  --on-primary-veil: rgba(0, 0, 0, 0.1);
+  --bg-fade: rgba(13, 17, 23, 0);
+  --overlay: rgba(0, 0, 0, 0.62);
+  --fab-shadow: 0 8px 22px rgba(0, 0, 0, 0.5);
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.45;
+  /* Numbers must never be ambiguous in a ledger: lining, tabular figures so columns of
+     rupees line up and 1/7 cannot be confused. */
+  font-variant-numeric: tabular-nums lining-nums;
+  -webkit-font-smoothing: antialiased;
+  overscroll-behavior-y: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+/* ── App shell ──────────────────────────────────────────────────────────── */
+
+.shell {
+  max-width: var(--shell);
+  margin: 0 auto;
+  min-height: 100dvh;
+  background: var(--bg);
+  position: relative;
+  /* On a desktop window the phone-width column would otherwise float in a void. */
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.screen {
+  padding: 20px 16px calc(var(--nav-height) + var(--safe-bottom) + 28px);
+}
+
+.screen--flush {
+  padding-top: 0;
+}
+
+.screen--nonav {
+  padding-bottom: calc(var(--safe-bottom) + 28px);
+}
+
+.screen-title {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin: 8px 0 4px;
+}
+
+.screen-subtitle {
+  color: var(--text-muted);
+  font-size: 15px;
+  margin: 0 0 18px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 26px 2px 10px;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+}
+
+.card + .card {
+  margin-top: 12px;
+}
+
+.card-list {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+/* A row list inside one card: hairlines between rows, none at the ends. */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 15px 16px;
+  text-align: left;
+  background: var(--surface);
+}
+
+.row + .row {
+  border-top: 1px solid var(--border);
+}
+
+.row:active {
+  background: var(--surface-sunken);
+}
+
+.row-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  display: grid;
+  place-items: center;
+  color: var(--strong);
+}
+
+.row-label {
+  flex: 1;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.row-value {
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.row-chevron {
+  color: var(--text-faint);
+  flex: 0 0 auto;
+}
+
+/* ── Hero (Home) ────────────────────────────────────────────────────────── */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--hero-from) 0%, var(--hero-via) 45%, var(--hero-to) 100%);
+  color: var(--hero-text);
+  /* Transparent in light (the hero meets a pale page and needs no help); a hairline in
+     dark, where hero and page are both dark and would otherwise bleed together. */
+  border-bottom: 1px solid var(--hero-base);
+  padding: 22px 18px 26px;
+}
+
+/* Soft diagonal sheen, echoing the brushed-metal header in the reference. Pure CSS so there
+   is no image to load before the first paint. */
+.hero::after {
+  content: '';
+  position: absolute;
+  inset: -40% -10% auto -10%;
+  height: 180%;
+  background: linear-gradient(
+    103deg,
+    rgba(255, 255, 255, 0) 34%,
+    rgba(255, 255, 255, 0.09) 46%,
+    rgba(255, 255, 255, 0.02) 52%,
+    rgba(255, 255, 255, 0.07) 62%,
+    rgba(255, 255, 255, 0) 74%
+  );
+  pointer-events: none;
+}
+
+.hero-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.hero-name {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.hero-tag {
+  font-size: 13px;
+  color: var(--hero-dim);
+  margin: 2px 0 0;
+}
+
+.hero-action {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 50%;
+  background: var(--hero-chip);
+  border: 1px solid var(--hero-chip-border);
+  display: grid;
+  place-items: center;
+  color: var(--hero-text);
+}
+
+.hero-label {
+  position: relative;
+  z-index: 1;
+  margin: 34px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--hero-dimmer);
+}
+
+.hero-amount {
+  position: relative;
+  z-index: 1;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+  margin: 2px 0 18px;
+  line-height: 1.1;
+}
+
+.hero-stats {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 18px;
+}
+
+.hero-stat-label {
+  font-size: 12px;
+  color: var(--hero-faint);
+}
+
+.hero-stat-value {
+  font-size: 15px;
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+.hero-divider {
+  width: 1px;
+  background: var(--hero-rule);
+}
+
+/* ── Stat tiles (Reports) ───────────────────────────────────────────────── */
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.stat {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 10px;
+  text-align: center;
+  min-width: 0;
+}
+
+.stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.stat-value {
+  font-size: 19px;
+  font-weight: 800;
+  margin-top: 3px;
+  letter-spacing: -0.02em;
+  /* Long figures shrink rather than pushing the tile wider and breaking the 3-up grid. */
+  overflow-wrap: anywhere;
+}
+
+/* ── Pills / segmented controls ─────────────────────────────────────────── */
+
+.pill-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px;
+  margin: 0 -2px;
+}
+
+.pill-row::-webkit-scrollbar {
+  display: none;
+}
+
+.pill {
+  flex: 0 0 auto;
+  padding: 9px 18px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.pill--active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+.pill-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  background: var(--border-strong);
+  margin: 6px 2px;
+}
+
+.segmented {
+  display: inline-flex;
+  background: var(--track);
+  border-radius: var(--radius-pill);
+  padding: 4px;
+  gap: 4px;
+}
+
+.segmented button {
+  padding: 9px 26px;
+  border-radius: var(--radius-pill);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.segmented button[aria-pressed='true'] {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+/* ── Ledger filters ─────────────────────────────────────────────────────── */
+
+.ledger-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Nudged down so the buttons sit on the title's baseline rather than its cap height. */
+.ledger-actions {
+  display: flex;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding-top: 16px;
+}
+
+.icon-toggle {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+}
+
+.icon-toggle--on {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 12px 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+}
+
+.search-box:focus-within {
+  border-color: var(--primary);
+}
+
+.search-box input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font-size: 16px;
+}
+
+.filter-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+}
+
+.date-range {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+/* Safari renders date inputs at their own intrinsic width and ignores width:100%, which
+   overflows the two-column grid unless the min-width floor is removed. */
+.date-range .input {
+  min-width: 0;
+  padding: 12px;
+  font-size: 15px;
+}
+
+/* ── Transaction rows ───────────────────────────────────────────────────── */
+
+.txn {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 13px 14px;
+}
+
+.txn + .txn {
+  margin-top: 10px;
+}
+
+.txn-badge {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+
+.txn-badge--in {
+  background: var(--green-tint);
+  color: var(--green);
+}
+
+.txn-badge--out {
+  background: var(--red-tint);
+  color: var(--red);
+}
+
+.txn-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.txn-title {
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.txn-meta {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.txn-tag {
+  display: inline-block;
+  margin-left: 7px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.txn-notes {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+
+.txn-side {
+  text-align: right;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.txn-amount {
+  font-size: 16px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.amount--in {
+  color: var(--green);
+}
+
+.amount--out {
+  color: var(--red);
+}
+
+.icon-button {
+  color: var(--text-faint);
+  padding: 4px;
+  display: grid;
+  place-items: center;
+}
+
+.icon-button:active {
+  color: var(--red);
+}
+
+/* ── Partner cards ──────────────────────────────────────────────────────── */
+
+.partner-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatar {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-radius: 50%;
+  background: var(--avatar-bg);
+  color: var(--strong);
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.avatar--sm {
+  width: 34px;
+  height: 34px;
+  flex-basis: 34px;
+  font-size: 12px;
+}
+
+.partner-name {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.partner-net {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.mini-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.mini {
+  background: var(--surface-sunken-2);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  min-width: 0;
+}
+
+.mini-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.mini-value {
+  font-size: 17px;
+  font-weight: 800;
+  margin-top: 1px;
+  overflow-wrap: anywhere;
+}
+
+.mini--wide {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+/* ── Settlement callout ─────────────────────────────────────────────────── */
+
+.settle-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  text-align: left;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 15px 16px;
+}
+
+.settle-icon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 50%;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  display: grid;
+  place-items: center;
+}
+
+.settle-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Both are spans inside a span, so they need to be made block-level explicitly - left
+   inline they run together on one line ("Rahul250") instead of stacking name over amount. */
+.settle-who {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.settle-amount {
+  display: block;
+  font-size: 17px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────────── */
+
+.btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  width: 100%;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  font-size: 17px;
+  font-weight: 700;
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+}
+
+.btn--green {
+  background: var(--green);
+}
+
+.btn--red {
+  background: var(--red);
+}
+
+.btn--ghost {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border-strong);
+}
+
+.btn--sm {
+  padding: 12px;
+  font-size: 15px;
+}
+
+.btn-row {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-row > * {
+  flex: 1;
+}
+
+.fab {
+  position: fixed;
+  right: max(16px, calc(50vw - var(--shell) / 2 + 16px));
+  bottom: calc(var(--nav-height) + var(--safe-bottom) + 18px);
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: var(--on-primary);
+  display: grid;
+  place-items: center;
+  box-shadow: var(--fab-shadow);
+  z-index: 30;
+}
+
+.fab:active {
+  transform: scale(0.95);
+}
+
+/* ── Bottom navigation ──────────────────────────────────────────────────── */
+
+.bottom-nav {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  width: 100%;
+  max-width: var(--shell);
+  height: calc(var(--nav-height) + var(--safe-bottom));
+  padding-bottom: var(--safe-bottom);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  z-index: 40;
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--text-faint);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.nav-item--active {
+  color: var(--strong);
+  font-weight: 700;
+}
+
+/* ── Forms ──────────────────────────────────────────────────────────────── */
+
+.field {
+  margin-bottom: 16px;
+}
+
+.field-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 7px;
+}
+
+.input {
+  width: 100%;
+  padding: 15px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  font-size: 17px;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--primary);
+}
+
+textarea.input {
+  resize: vertical;
+  min-height: 84px;
+}
+
+.amount-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+}
+
+.amount-input:focus-within {
+  border-color: var(--primary);
+}
+
+.amount-input span {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--text-faint);
+}
+
+.amount-input input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: none;
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.type-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  margin-bottom: 22px;
+}
+
+.type-toggle button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 15px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.type-toggle button[aria-pressed='true'].type-in {
+  background: var(--green-tint);
+  color: var(--green);
+}
+
+.type-toggle button[aria-pressed='true'].type-out {
+  background: var(--red-tint);
+  color: var(--red);
+}
+
+.owner-note {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.error-text {
+  color: var(--red);
+  font-size: 14px;
+  margin: 0 0 14px;
+  font-weight: 600;
+}
+
+/* ── Modal / sheet ──────────────────────────────────────────────────────── */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  z-index: 60;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  padding: 22px;
+}
+
+.sheet-title {
+  font-size: 20px;
+  font-weight: 800;
+  margin: 0 0 8px;
+}
+
+.sheet-body {
+  color: var(--text-muted);
+  font-size: 15px;
+  margin: 0 0 20px;
+}
+
+/* ── Full-screen page header (Add Transaction, sub-pages) ───────────────── */
+
+.page-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.page-head h1 {
+  flex: 1;
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  margin: 0;
+}
+
+/* Keeps the title optically centred by balancing the back button on the left. */
+.page-head-spacer {
+  width: 28px;
+  flex: 0 0 28px;
+}
+
+.sticky-footer {
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(180deg, var(--bg-fade) 0%, var(--bg) 24%);
+  padding: 16px 16px calc(16px + var(--safe-bottom));
+  margin-top: 12px;
+}
+
+/* ── Chart ──────────────────────────────────────────────────────────────── */
+
+.chart-caption {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: -2px 0 12px;
+}
+
+.chart-wrap {
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.chart-wrap::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Misc ───────────────────────────────────────────────────────────────── */
+
+.empty {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 46px 20px;
+}
+
+.empty-title {
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--surface-sunken);
+  color: var(--text-muted);
+}
+
+.badge--warn {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.badge--ok {
+  background: var(--green-tint);
+  color: var(--green);
+}
+
+.brand-footer {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-top: 30px;
+}
+
+.brand-footer strong {
+  display: block;
+  color: var(--text);
+  font-size: 15px;
+}
+
+.spinner {
+  width: 26px;
+  height: 26px;
+  border: 3px solid var(--border-strong);
+  border-top-color: var(--strong);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin: 40px auto;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+  .fab:active {
+    transform: none;
+  }
+}
+
+/* ── Auth screens ───────────────────────────────────────────────────────── */
+
+.auth {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 28px 22px calc(28px + var(--safe-bottom));
+  max-width: var(--shell);
+  margin: 0 auto;
+}
+
+.auth-logo {
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0;
+}
+
+.auth-tag {
+  color: var(--text-muted);
+  margin: 4px 0 30px;
+}
+
+.pin-dots {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin: 26px 0 8px;
+}
+
+.pin-dot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid var(--border-strong);
+}
+
+.pin-dot--filled {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+
+.keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-top: 26px;
+}
+
+.key {
+  height: 62px;
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  font-size: 24px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.key:active {
+  background: var(--track);
+}
+
+.key--blank {
+  background: none;
+  border: none;
+}
+
+.group-code {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-align: center;
+  color: var(--strong);
+}
+
+.link-button {
+  color: var(--strong);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Owner picker on Add Transaction. Wider than a plain pill because it carries an avatar, and
+   the selected one goes solid navy so "whose entry is this" is unmistakable at a glance. */
+.owner-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  flex: 0 0 auto;
+  padding: 6px 16px 6px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.owner-option--active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--on-primary);
+}
+
+.owner-option--active .avatar {
+  background: var(--on-primary-veil);
+  color: inherit;
+}
+
+/* Chart marks. Kept here rather than as SVG attributes so the chart picks up the theme
+   tokens exactly like the rest of the app. */
+.chart-axis {
+  stroke: var(--chart-axis);
+}
+
+.chart-grid {
+  stroke: var(--chart-grid);
+}
+
+.chart-tick {
+  fill: var(--chart-tick);
+}
+
+.chart-bar {
+  fill: var(--chart-bar);
+}
+
+.chart-label {
+  fill: var(--chart-label);
+}
+
+/* ── Theme control ──────────────────────────────────────────────────────── */
+
+.theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* The segmented control is inline-flex by default so it hugs its labels; inside the theme
+   card it should span the width and give each option an equal share. */
+.segmented--full {
+  display: flex;
+  width: 100%;
+}
+
+.segmented--full button {
+  flex: 1;
+  padding: 10px 8px;
+}
+
+/* ── Support console ────────────────────────────────────────────────────── */
+
+/* Operator surface, not a client one. It borrows the same tokens so it stays legible in both
+   themes, but the permanently dark bar makes it obvious you are not in a partner's app. */
+.support {
+  max-width: var(--shell);
+  margin: 0 auto;
+  min-height: 100dvh;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.support-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: linear-gradient(135deg, var(--hero-from) 0%, var(--hero-via) 60%, var(--hero-to) 100%);
+  color: var(--hero-text);
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.support-title {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.support-sub {
+  font-size: 13px;
+  color: var(--hero-dim);
+}
+
+.support-signout {
+  flex: 0 0 auto;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--hero-chip);
+  border: 1px solid var(--hero-chip-border);
+  color: var(--hero-text);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.support-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* ── Approval request ───────────────────────────────────────────────────── */
+
+.approval {
+  background: var(--surface);
+  border: 1px solid var(--warn-fg);
+  border-radius: var(--radius-lg);
+  padding: 15px 16px;
+}
+
+.approval-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 9px;
+}
+
+.approval-title {
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.approval-body {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-top: 5px;
+}
+
+.approval-meta {
+  color: var(--text-faint);
+  font-size: 13px;
+  margin: 8px 0 12px;
+}
+
+/* ── Settlement paid state ──────────────────────────────────────────────── */
+
+.paid-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--green-tint);
+  border: 1px solid var(--green);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  color: var(--green);
+}
+
+.paid-tick {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  display: grid;
+  place-items: center;
+}
+
+.paid-title {
+  font-weight: 800;
+  font-size: 16px;
+}
+
+.paid-sub {
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+/* ── Frozen account ─────────────────────────────────────────────────────── */
+
+/* Deliberately the whole viewport and always dark, in both themes. This is not a screen to
+   design around - it is a stop sign, and it should not look like part of the app. */
+.frozen {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: #0b0f16;
+  color: #f0f4f9;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px 26px calc(32px + var(--safe-bottom));
+}
+
+.frozen-mark {
+  color: #38bdf8;
+  margin-bottom: 26px;
+}
+
+.frozen-title {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  margin: 0;
+  max-width: 20ch;
+}
+
+.frozen-body {
+  color: rgba(240, 244, 249, 0.7);
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 14px 0 0;
+  max-width: 34ch;
+}
+
+.frozen-actions {
+  margin-top: 34px;
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* The ghost button borrows page tokens that do not exist against this fixed dark ground. */
+.frozen .btn--ghost {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #f0f4f9;
+}
+
+.frozen .link-button {
+  color: rgba(240, 244, 249, 0.75);
+}
+
+/* ── Update prompt ──────────────────────────────────────────────────────── */
+
+/* In normal flow rather than fixed: it nudges the page down by its own height instead of
+   covering the top of the hero, and it is gone the moment it is dismissed or applied. */
+.update-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.update-bar-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.update-bar-action {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--on-primary);
+  color: var(--primary);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.update-bar-later {
+  flex: 0 0 auto;
+  color: var(--on-primary);
+  opacity: 0.7;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 6px 2px;
+}
+
+/* Mandatory update. Same full-stop treatment as the frozen screen, deliberately: both mean
+   "this app cannot be used right now", and they should read the same way. */
+.update-block {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: var(--bg);
+  display: grid;
+  place-items: center;
+  padding: 32px 26px calc(32px + var(--safe-bottom));
+}
+
+.update-block-inner {
+  max-width: 340px;
+  text-align: center;
+}
+
+.update-mark {
+  color: var(--primary);
+  margin-bottom: 20px;
+}
+
+.update-title {
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.update-body {
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1.5;
+  margin: 14px 0 0;
+}

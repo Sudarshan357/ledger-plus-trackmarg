@@ -1,0 +1,290 @@
+// Ledger+ data model.
+//
+// This schema spans TWO Postgres schemas on the one shared Supabase database:
+//
+//   public  - the existing Trackmarg tables (Group, User, Session, Role). Ledger+ READS and
+//             WRITES these because that is the whole point of "same Trackmarg Group Code
+//             system": a Ledger+ partnership IS a Trackmarg Group, and a Ledger+ partner IS a
+//             Trackmarg User. They are mirrored here field-for-field so Prisma can talk to
+//             them, but Ledger+ NEVER migrates them - the transport app owns their DDL.
+//
+//   ledger  - every table Ledger+ actually owns. Keeping them out of `public` is deliberate:
+//             the transport app's Prisma datasource only ever looks at `public`, so these
+//             tables are invisible to its migration engine and can never show up as schema
+//             drift there. Ledger+ can evolve its own storage without touching Trackmarg.
+//
+// Cross-schema foreign keys (ledger.* -> public."Group"/"User") are plain Postgres FKs and
+// work exactly like same-schema ones.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["ledger", "public"]
+}
+
+// ---------------------------------------------------------------------------
+// SHARED TRACKMARG TABLES (public) - mirrored, not owned.
+// ---------------------------------------------------------------------------
+
+enum Role {
+  admin
+  driver
+
+  @@schema("public")
+}
+
+/// The Trackmarg tenant boundary. `code` is the Group Code, stored normalized (uppercase
+/// alphanumerics only, e.g. "TM4821") and rendered as "TM-4821" in the UI.
+model Group {
+  id                String   @id @default(cuid())
+  code              String   @unique @db.VarChar(12)
+  name              String
+  nextInvoiceNumber Int      @default(1)
+  frozen            Boolean  @default(false)
+  maxDrivers        Int?
+  maxAdmins         Int?
+  maxBillsPerDay    Int?
+  createdAt         DateTime @default(now())
+
+  users           User[]
+  ledgerMembers   LedgerMember[]
+  ledgerSessions  LedgerSession[]
+  transactions    LedgerTransaction[]
+  settlements     LedgerSettlement[]
+  ledgerApprovals LedgerApproval[]
+  ledgerAuditLogs LedgerAuditLog[]
+
+  @@schema("public")
+}
+
+/// A Trackmarg account. Ledger+ creates these with role `admin` - both partners are equal
+/// peers, there is no subordinate role in a two-person partnership - and stores the 4-6 digit
+/// PIN in `passwordHash` using the same PBKDF2 scheme the transport app uses.
+model User {
+  id           String   @id @default(cuid())
+  groupId      String
+  group        Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  role         Role
+  name         String
+  phone        String
+  userCode     String?  @unique
+  passwordHash String
+  email        String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions     Session[]
+  ledgerMember LedgerMember?
+
+  @@unique([groupId, phone])
+  @@index([groupId])
+  @@schema("public")
+}
+
+/// Auth-token records. A signed token is self-contained, so this table is what makes
+/// server-side revocation (logout, PIN change) possible at all.
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash  String    @unique
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  lastSeenAt DateTime  @default(now())
+  userAgent  String?
+  ip         String?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@schema("public")
+}
+
+// ---------------------------------------------------------------------------
+// LEDGER+ TABLES (ledger) - owned and migrated by this app.
+// ---------------------------------------------------------------------------
+
+/// Marks which Trackmarg Users are partners in which Ledger+ partnership. Its existence is
+/// also what distinguishes a "Ledger+ group" from a plain transport group, so nobody can
+/// accidentally join a transport group code as a partner (see routes/auth.routes.ts).
+model LedgerMember {
+  id       String   @id @default(cuid())
+  groupId  String
+  group    Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  userId   String   @unique
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 'owner' = created the group, 'partner' = joined with the code. Both have identical
+  /// financial permissions; this only records who started the partnership.
+  role     String   @default("partner")
+  joinedAt DateTime @default(now())
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@schema("ledger")
+}
+
+/// An accounting session (settlement period). Exactly one per group may be `active` at a
+/// time - enforced by a partial unique index created in the migration, not just in code.
+/// "Start Fresh Session" closes the active one and opens the next; nothing is ever deleted.
+model LedgerSession {
+  id         String    @id @default(cuid())
+  groupId    String
+  group      Group     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  /// 1, 2, 3... per group. Rendered as "Settlement #001".
+  seq        Int
+  status     String    @default("active")
+  startedAt  DateTime  @default(now())
+  closedAt   DateTime?
+  closedById String?
+
+  transactions LedgerTransaction[]
+  settlement   LedgerSettlement?
+
+  @@unique([groupId, seq])
+  @@index([groupId, status])
+  @@schema("ledger")
+}
+
+/// One money movement. `ownerId` is always the user who created it - the API forces it from
+/// the auth context and ignores anything the client sends, so a partner can never file an
+/// entry under the other partner's name.
+///
+/// Deletion is two-stage. `deletedAt`/`deletedById` move the row into Deleted Records with
+/// every original field intact (nothing is copied or summarised away). Only the OTHER partner
+/// can then destroy the row for good.
+model LedgerTransaction {
+  id        String        @id @default(cuid())
+  groupId   String
+  group     Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sessionId String
+  session   LedgerSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  ownerId  String
+  type     String
+  category String
+  amount   Decimal  @db.Decimal(14, 2)
+  date     DateTime @db.Date
+  notes    String   @default("")
+
+  /// The id this entry had in the backup file it was restored from, or null for an entry
+  /// typed in normally. Unique per group, which is what makes restoring the same file twice
+  /// a no-op instead of doubling the books.
+  sourceId String?
+
+  createdById String
+  createdAt   DateTime  @default(now())
+  updatedById String?
+  updatedAt   DateTime  @updatedAt
+  deletedById String?
+  deletedAt   DateTime?
+
+  @@index([groupId, sessionId])
+  @@index([groupId, deletedAt])
+  @@index([groupId, date])
+  @@schema("ledger")
+}
+
+/// The frozen, read-only result of closing a session. Written once inside the same
+/// transaction that closes the session, so the numbers can never drift from the ledger they
+/// were computed from.
+model LedgerSettlement {
+  id        String        @id @default(cuid())
+  groupId   String
+  group     Group         @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sessionId String        @unique
+  session   LedgerSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  seq       Int
+  startedAt DateTime
+  closedAt  DateTime
+
+  totalReceived   Decimal @db.Decimal(14, 2)
+  totalExpense    Decimal @db.Decimal(14, 2)
+  totalProfit     Decimal @db.Decimal(14, 2)
+  sharePerPartner Decimal @db.Decimal(14, 2)
+
+  /// Who pays whom, resolved at close time. Both null when the session settles exactly even.
+  fromUserId   String?
+  fromUserName String  @default("")
+  toUserId     String?
+  toUserName   String  @default("")
+  amount       Decimal @db.Decimal(14, 2)
+
+  /// Complete snapshot: per-partner totals plus every transaction in the session, so the
+  /// historical report stays readable even if a partner is later removed. Recomputed in full
+  /// whenever the settlement is amended, so it can never disagree with its own figures.
+  summary Json
+
+  /// Set when a partner confirms the money actually changed hands. A settlement being
+  /// calculated and the payment being made are different events, and the ledger was
+  /// previously unable to tell you which had happened.
+  paidAt   DateTime?
+  paidById String?
+
+  /// Amendments. A settled archive can still be corrected - a forgotten expense is a real
+  /// thing - but never silently: the count and the figure it started at are kept so a partner
+  /// can always see that what they agreed to has since changed, and by how much.
+  amendedAt      DateTime?
+  amendmentCount Int       @default(0)
+  originalAmount Decimal?  @db.Decimal(14, 2)
+
+  createdById String
+  createdAt   DateTime @default(now())
+
+  @@unique([groupId, seq])
+  @@index([groupId])
+  @@schema("ledger")
+}
+
+/// A change that needs the other partner's agreement before it happens.
+///
+/// Closing a session and amending a settled one are both moments where one partner's action
+/// rewrites what the two of them have agreed the money is - so neither happens on one
+/// person's say-so. The requested change is held here as `payload` and is only applied when
+/// the other partner approves; nothing is written to the ledger in the meantime.
+model LedgerApproval {
+  id      String @id @default(cuid())
+  groupId String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  /// 'close_session' | 'amend_settlement'
+  kind   String
+  /// 'pending' | 'approved' | 'rejected' | 'cancelled'
+  status String @default("pending")
+
+  requestedById String
+  requestedAt   DateTime @default(now())
+  decidedById   String?
+  decidedAt     DateTime?
+
+  /// What will be done on approval. For an amendment, the entry to add.
+  payload Json
+
+  /// Whichever the request concerns.
+  sessionId    String?
+  settlementId String?
+
+  @@index([groupId, status])
+  @@schema("ledger")
+}
+
+/// Append-only audit trail. This is the only record that survives a permanent delete, which
+/// is exactly why it exists: partnership money should never be erasable without a trace.
+model LedgerAuditLog {
+  id        String   @id @default(cuid())
+  groupId   String
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sessionId String?
+  userId    String
+  userName  String
+  action    String
+  entityId  String?
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([groupId, createdAt])
+  @@schema("ledger")
+}
