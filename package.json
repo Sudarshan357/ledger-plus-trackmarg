@@ -16,6 +16,7 @@
     "start:public": "npm run build:info && npm run build:web && npm run build:backend && concurrently -n api,tunnel -c blue,magenta \"node backend/dist/index.js\" \"npm:tunnel\"",
     "server": "npm run build:backend && node backend/dist/index.js",
     "deploy": "node scripts/deploy.mjs",
+    "watch": "node scripts/watch-deploy.mjs",
     "tunnel": "cloudflared tunnel --url http://localhost:4000",
     "preview": "vite preview",
     "db:generate": "prisma generate",
