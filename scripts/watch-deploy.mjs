@@ -1,21 +1,26 @@
 /*
- * Turns `git push` into a live deploy, with nothing to run by hand.
+ * Turns a commit into a live deploy, with nothing to run by hand.
  *
  *     npm run watch
  *
- * Polls GitHub for a new commit on this branch and, when one appears, runs the same
+ * Checks whether the RUNNING BUILD is behind the code and, when it is, runs the same
  * `npm run deploy -- --restart` you would have run yourself. Every client then sees
  * "Update available" on its next version check.
  *
- * Polling rather than a GitHub webhook, deliberately: a webhook needs GitHub to be able to
- * reach THIS machine, which behind CGNAT means a permanent public hostname. Polling needs
- * nothing inbound and works today. Once there is a domain-backed Cloudflare Tunnel, a webhook
- * is worth swapping in - it turns a minute into a second.
+ * The comparison is deliberately "built commit vs. latest commit", not "local vs. remote".
+ * Those look equivalent and are not: if you commit and push from the same folder that serves
+ * the app - which is exactly this setup - local and remote match the instant you push, so a
+ * local-vs-remote watcher would never fire even though the running build is stale. Comparing
+ * against what was actually built is correct whether the serving copy is the machine you work
+ * on or a separate one.
  *
- * `git ls-remote` is used rather than the GitHub API so this needs no token of its own: it
- * reuses the credential git already has.
+ * Polling rather than a GitHub webhook: a webhook needs GitHub to reach THIS machine, which
+ * behind CGNAT means a permanent public hostname. Polling needs nothing inbound and works
+ * today. Worth swapping once the Cloudflare Tunnel is domain-backed - it turns a minute into
+ * a second.
  */
 import { execSync, spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,46 +28,77 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const INTERVAL_MS = Math.max(30, Number(process.env.WATCH_INTERVAL_SECONDS || 60)) * 1000;
 
 function git(args) {
-  return execSync(`git ${args}`, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
-}
-
-function stamp() {
-  return new Date().toLocaleTimeString('en-IN', { hour12: false });
+  return execSync(`git ${args}`, {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'pipe'],
+    timeout: 60_000,
+  }).trim();
 }
 
 function log(message) {
-  console.log(`[${stamp()}] ${message}`);
+  console.log(`[${new Date().toLocaleTimeString('en-IN', { hour12: false })}] ${message}`);
+}
+
+/// The commit the currently-built bundle was made from. `npm run build` writes this.
+function builtCommit() {
+  try {
+    const info = JSON.parse(fs.readFileSync(path.join(root, 'build-info.json'), 'utf8'));
+    // A dirty build is stamped "abc1234+dev"; only the commit part is comparable.
+    return String(info.buildId).split('+')[0];
+  } catch {
+    return null;
+  }
 }
 
 const branch = git('rev-parse --abbrev-ref HEAD');
-log(`Watching origin/${branch} every ${INTERVAL_MS / 1000}s. Push to deploy.`);
+log(`Watching ${branch} every ${INTERVAL_MS / 1000}s. Commit or push to deploy.`);
 
 let deploying = false;
+let failedAt = null; // commit that failed to deploy - not retried until something new arrives
+let quiet = false; // suppresses repeated network-failure noise
 
 async function tick() {
-  // A deploy takes longer than the poll interval, and starting a second one on top of it
-  // would have two processes fighting over the port and the build directory.
+  // A deploy outlasts the poll interval, and a second one on top would have two processes
+  // fighting over the port and the build directory.
   if (deploying) return;
 
-  let remote;
+  let latest;
   try {
-    // Asks GitHub for the branch tip without fetching any objects.
-    remote = git(`ls-remote origin refs/heads/${branch}`).split(/\s+/)[0];
+    // Bring the remote's commits in without touching the working tree, so a push from
+    // elsewhere is seen too. Then take whichever of local/remote is actually newest.
+    git(`fetch --quiet origin ${branch}`);
+    const local = git('rev-parse HEAD');
+    let ahead = 0;
+    try {
+      // How many commits the remote has that we do not. Counting rather than
+      // `merge-base --is-ancestor`, which reports through its exit code - and a non-zero exit
+      // from execSync throws, which would be caught below and misread as a network failure.
+      ahead = Number(git(`rev-list --count HEAD..origin/${branch}`)) || 0;
+    } catch {
+      /* branch not pushed yet - local is all there is */
+    }
+    latest = ahead > 0 ? git(`rev-parse origin/${branch}`) : local;
+    if (quiet) {
+      log('Reconnected.');
+      quiet = false;
+    }
   } catch {
-    // Laptop asleep, wifi dropped, GitHub having a moment. Not worth reporting every minute -
-    // the next tick either works or it does not.
+    if (!quiet) {
+      log('Cannot reach the remote right now - will keep trying quietly.');
+      quiet = true;
+    }
     return;
   }
-  if (!remote) return;
 
-  const local = git('rev-parse HEAD');
-  if (remote === local) return;
+  const built = builtCommit();
+  if (built && latest.startsWith(built)) return;
+  if (failedAt && latest.startsWith(failedAt)) return;
 
   deploying = true;
-  log(`New commit ${remote.slice(0, 7)} on origin/${branch} - deploying`);
+  log(`Running build is ${built ?? 'unknown'}, code is at ${latest.slice(0, 7)} - deploying`);
 
-  // Run deploy as a child rather than importing it: a build failure then kills only the
-  // deploy, and this watcher keeps going instead of dying on a bad push.
+  // A child process, so a bad commit fails the deploy without taking the watcher down too.
   const result = spawnSync('npm', ['run', 'deploy', '--', '--restart'], {
     cwd: root,
     stdio: 'inherit',
@@ -70,13 +106,14 @@ async function tick() {
   });
 
   if (result.status === 0) {
-    log(`Deployed ${git('rev-parse --short HEAD')}. Clients will be offered the update.`);
+    failedAt = null;
+    log(`Deployed ${builtCommit()}. Clients will be offered the update.`);
   } else {
-    // deploy.mjs only restarts AFTER a successful build, so a failure here means the previous
-    // build is still serving. Saying so matters - "deploy failed" and "the app is down" are
-    // very different things at 11pm.
+    // deploy only restarts AFTER a successful build, so the previous build is still serving.
+    // Saying so matters: "the deploy failed" and "the app is down" are very different things.
+    failedAt = latest.slice(0, 7);
     log('Deploy FAILED. The previous build is still running and serving normally.');
-    log('Fix the problem, push again, and this will pick it up.');
+    log(`Not retrying ${failedAt}. Fix it, commit again, and this will pick that up.`);
   }
   deploying = false;
 }
