@@ -62,14 +62,25 @@ function parseManifest(value: unknown): AppVersionManifest | null {
 const TTL_MS = 2 * 60 * 1000;
 let cached: { at: number; manifest: AppVersionManifest | null } | null = null;
 
-async function fetchJson(url: string, timeoutMs = 8000): Promise<unknown | null> {
+/// `api: true` for api.github.com, false for a release asset download.
+///
+/// The distinction is load-bearing, not tidiness. GitHub's asset CDN varies its cache on the
+/// Accept header, and asking a plain file for `application/vnd.github+json` gets you a stale
+/// variant of it: measured, immediately after replacing an asset, the vendor-Accept request
+/// returned the PREVIOUS version.json while an ordinary request returned the new one. Sending
+/// API headers at a file download would make release notes go randomly stale.
+async function fetchJson(
+  url: string,
+  { api = false, timeoutMs = 8000 }: { api?: boolean; timeoutMs?: number } = {},
+): Promise<unknown | null> {
   const abort = new AbortController();
   const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
     const res = await fetch(url, {
       signal: abort.signal,
+      cache: 'no-store',
       headers: {
-        Accept: 'application/vnd.github+json',
+        Accept: api ? 'application/vnd.github+json' : 'application/json',
         'User-Agent': 'ledger-plus',
         // Only needed for a private release repo, or to lift the rate limit. The releases
         // repo is public precisely so this is optional.
@@ -95,9 +106,11 @@ export async function getAppVersion(): Promise<AppVersionManifest | null> {
 
   const release = (await fetchJson(
     `https://api.github.com/repos/${config.releaseRepo}/releases/latest`,
+    { api: true },
   )) as { assets?: Array<{ name?: string; browser_download_url?: string }> } | null;
 
   const asset = release?.assets?.find((a) => a.name === 'version.json');
+  // Plain download, no API headers - see fetchJson.
   const manifest = asset?.browser_download_url
     ? parseManifest(await fetchJson(asset.browser_download_url))
     : null;
