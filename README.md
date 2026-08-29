@@ -56,6 +56,8 @@ npm start              # build frontend + backend, then serve everything on :400
 | `npm run dev:api` / `dev:web` | Either half on its own |
 | `npm run build` | Typecheck + build the frontend to `dist/` |
 | `npm run deploy` | Pull, migrate, rebuild; `-- --restart` also restarts the server |
+| `npm run watch` | Auto-deploy whenever the running build falls behind the code |
+| `npm run release` | Publish the current tag's notes as a release manifest |
 | `npm run start:public` | Build, serve, and open a Cloudflare Tunnel (see below) |
 | `npm run tunnel` | Tunnel only, against an already-running server |
 | `npm run db:migrate` | Apply pending SQL migrations via `DIRECT_URL` |
@@ -100,6 +102,33 @@ is that step: pull, install if dependencies moved, migrate, build, and (with `--
 the running process. Migrations run before the new build goes live, which is safe precisely
 because they are additive - the old build keeps serving against the migrated database until
 the moment it is replaced.
+
+### Naming a version
+
+The build stamp answers *is the server newer than this client* — a fact about bytes, and the
+right trigger. It cannot answer the human half: a commit hash is not a version name, and
+"9773129 is available" tells a partner nothing about whether to care.
+
+```bash
+git tag -a v1.0.1 -m "Dark theme" -m "Ledger search"
+git push origin v1.0.1
+npm run release
+```
+
+Each line of the annotated tag becomes one release-notes bullet; a line containing
+`[force-update]` makes the update mandatory. `npm run release` publishes that as a
+`version.json` asset on a GitHub Release in **`Sudarshan357/ledger-plus-releases`** — a
+separate **public** repo, so the server reads the manifest with no credential while the
+source repo stays private. It reuses the credential git already holds, so there is no token
+to create.
+
+The server merges it into `/api/version` as an additive `release` field, and serves it alone
+at `/api/app-version`. Every failure mode degrades to `null` rather than erroring — no
+release yet, GitHub unreachable, malformed manifest — and the prompt simply shows no name or
+notes. The flow (and the `[force-update]` convention) follows
+[mystio1/excavator-manager](https://github.com/mystio1/excavator-manager), so the same tags
+will work unchanged if an Android build is added later; `apkUrl` and `apkSha256` are already
+carried through the manifest for it.
 
 Each build is stamped with the git commit and a timestamp (`scripts/build-info.mjs` →
 `build-info.json`). Vite bakes that into the bundle; Express serves it at `GET /api/version`.
