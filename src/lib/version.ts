@@ -8,11 +8,23 @@ declare const __BUILD_TIME__: number;
 export const BUILD_ID: string = typeof __BUILD_ID__ === 'string' ? __BUILD_ID__ : 'dev';
 export const BUILD_TIME: number = typeof __BUILD_TIME__ === 'number' ? __BUILD_TIME__ : 0;
 
+/// The manifest published to the releases repo. Absent until a version has been released,
+/// which is fine - the prompt then just has no name or notes to show.
+export interface ReleaseManifest {
+  versionCode: number;
+  versionName: string;
+  releaseNotes: string[];
+  forceUpdate: boolean;
+  apkUrl?: string;
+  apkSha256?: string;
+}
+
 interface ServerVersion {
   buildId: string;
   buildTime: number;
   branch: string;
   minClientBuildTime: number;
+  release?: ReleaseManifest | null;
 }
 
 /// Checked when the app opens, whenever it comes back to the foreground, and on a slow timer.
@@ -23,10 +35,12 @@ const POLL_MS = 15 * 60 * 1000;
 export interface UpdateState {
   available: boolean;
   /// The running build can no longer talk to this server correctly, so carrying on is not an
-  /// option. Only ever true when the operator has deliberately said so via
-  /// MIN_CLIENT_BUILD_TIME - see the note in backend/src/env.ts.
+  /// option. Only ever true when someone deliberately said so: a `[force-update]` line in the
+  /// release tag, or MIN_CLIENT_BUILD_TIME pinned on the server.
   required: boolean;
   serverBuildId: string;
+  /// What to call the new version, and what changed. Null until a release is published.
+  release: ReleaseManifest | null;
   apply: () => void;
 }
 
@@ -59,7 +73,11 @@ export function useAppUpdate(): UpdateState {
   // against any real server it is pointed at.
   const known = BUILD_TIME > 0 && server !== null;
   const available = known && server.buildTime > BUILD_TIME;
-  const required = known && BUILD_TIME < server.minClientBuildTime;
+  // Two ways an update becomes mandatory: the operator pinning a floor via
+  // MIN_CLIENT_BUILD_TIME, or the release itself being tagged [force-update]. The second is
+  // the one that scales - it travels with the release rather than with server config.
+  const required =
+    known && (BUILD_TIME < server.minClientBuildTime || (available && server.release?.forceUpdate === true));
 
   const apply = useCallback(() => {
     // The user was already past the lock screen and just chose this, so re-asking for the PIN
@@ -71,5 +89,11 @@ export function useAppUpdate(): UpdateState {
     window.location.reload();
   }, []);
 
-  return { available, required, serverBuildId: server?.buildId ?? BUILD_ID, apply };
+  return {
+    available,
+    required,
+    serverBuildId: server?.buildId ?? BUILD_ID,
+    release: server?.release ?? null,
+    apply,
+  };
 }

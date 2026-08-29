@@ -17,6 +17,7 @@
     "server": "npm run build:backend && node backend/dist/index.js",
     "deploy": "node scripts/deploy.mjs",
     "watch": "node scripts/watch-deploy.mjs",
+    "release": "node scripts/release.mjs",
     "tunnel": "cloudflared tunnel --url http://localhost:4000",
     "preview": "vite preview",
     "db:generate": "prisma generate",

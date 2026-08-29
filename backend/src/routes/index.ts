@@ -14,6 +14,7 @@ import { eventsRouter } from './events.routes.js';
 import { blockIfFrozen, requireAuth } from '../middleware/auth.js';
 import { notFound } from '../middleware/errorHandler.js';
 import { config } from '../env.js';
+import { getAppVersion } from '../services/appVersion.js';
 
 export const apiRouter = Router();
 
@@ -37,13 +38,25 @@ apiRouter.get('/health', (_req, res) => {
 // Deliberately public and above requireAuth: a client needs to be able to discover that it is
 // out of date while signed out, locked, or frozen - those are exactly the states someone might
 // be stuck in BECAUSE they are running an old build.
-apiRouter.get('/version', (_req, res) => {
+apiRouter.get('/version', async (_req, res) => {
+  // `release` is additive: an older client ignores the field and keeps comparing build times
+  // exactly as before, which is the compatibility rule this project runs on.
+  const release = await getAppVersion();
   res.json({
     buildId: config.build.buildId,
     buildTime: config.build.buildTime,
     branch: config.build.branch,
     minClientBuildTime: config.minClientBuildTime,
+    release,
   });
+});
+
+// The manifest on its own, in the exact shape the reference Android client expects. Kept
+// separate from /version so the native build can use that code unchanged when it lands.
+apiRouter.get('/app-version', async (_req, res) => {
+  const release = await getAppVersion();
+  if (!release) return res.status(503).json({ error: 'not_configured' });
+  res.json(release);
 });
 
 // Register and login are the only routes reachable without a session.

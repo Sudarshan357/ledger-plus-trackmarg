@@ -13,6 +13,11 @@ import type { UpdateState } from '../lib/version';
 /// Transaction form, so it only ever happens on a tap.
 export function UpdateBanner({ update }: { update: UpdateState }) {
   const [dismissed, setDismissed] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const { release } = update;
+  const label = release ? `v${release.versionName}` : null;
+  const notes = release?.releaseNotes ?? [];
 
   if (update.required) {
     return (
@@ -21,11 +26,20 @@ export function UpdateBanner({ update }: { update: UpdateState }) {
           <div className="update-mark">
             <CloudUploadIcon size={44} />
           </div>
-          <h1 className="update-title">A new version of Ledger+ is ready</h1>
+          <h1 className="update-title">
+            {label ? `Ledger+ ${label} is ready` : 'A new version of Ledger+ is ready'}
+          </h1>
           <p className="update-body">
             This version can no longer work with the server. Update to carry on — your ledger is
             stored on the server and is completely unaffected.
           </p>
+          {notes.length > 0 && (
+            <ul className="update-notes update-notes--block">
+              {notes.map((note) => (
+                <li key={note}>{note}</li>
+              ))}
+            </ul>
+          )}
           <button className="btn" onClick={update.apply} style={{ marginTop: 26 }}>
             Update now
           </button>
@@ -37,19 +51,41 @@ export function UpdateBanner({ update }: { update: UpdateState }) {
   if (!update.available || dismissed) return null;
 
   return (
-    <div className="update-bar">
-      <CloudUploadIcon size={19} />
-      <span className="update-bar-text">Update available</span>
-      <button className="update-bar-action" onClick={update.apply}>
-        Update
-      </button>
-      <button
-        className="update-bar-later"
-        onClick={() => setDismissed(true)}
-        aria-label="Dismiss until next time"
-      >
-        Later
-      </button>
+    <div className="update-bar-wrap">
+      <div className="update-bar">
+        <CloudUploadIcon size={19} />
+        <span className="update-bar-text">
+          Update available{label ? ` · ${label}` : ''}
+        </span>
+        {/* What changed is worth a tap, not a permanent block of text above the balances. */}
+        {notes.length > 0 && (
+          <button
+            className="update-bar-later"
+            onClick={() => setExpanded((open) => !open)}
+            aria-expanded={expanded}
+          >
+            {expanded ? 'Hide' : "What's new"}
+          </button>
+        )}
+        <button className="update-bar-action" onClick={update.apply}>
+          Update
+        </button>
+        <button
+          className="update-bar-later"
+          onClick={() => setDismissed(true)}
+          aria-label="Dismiss until next time"
+        >
+          Later
+        </button>
+      </div>
+
+      {expanded && notes.length > 0 && (
+        <ul className="update-notes">
+          {notes.map((note) => (
+            <li key={note}>{note}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

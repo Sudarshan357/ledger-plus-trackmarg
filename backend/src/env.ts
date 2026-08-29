@@ -50,6 +50,12 @@ export const config = {
   // SUPPORT_ACCESS_PASSWORD, so the two consoles never share a credential.
   supportPassword: process.env.LEDGER_SUPPORT_PASSWORD || '',
   build: readBuildInfo(),
+  // Where release manifests are published. A separate PUBLIC repo, so the app can read
+  // version.json with no credential while the source repo stays private.
+  releaseRepo: process.env.GITHUB_RELEASE_REPO || '',
+  // Only needed if the release repo is private, or to lift GitHub's 60-per-hour
+  // unauthenticated rate limit. Optional by design.
+  githubApiToken: process.env.GITHUB_API_TOKEN || '',
   // Clients built before this instant must update before they can carry on. Left at 0, every
   // update is optional and an old client keeps working - which is the normal case, because
   // migrations here are additive. Set it (epoch ms) only when a server change genuinely
