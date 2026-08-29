@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { prisma } from '../db/prisma.js';
+import { transaction, prisma } from '../db/prisma.js';
 import * as transactionsRepo from '../db/repositories/transactions.repository.js';
 import * as ledgerSessionsRepo from '../db/repositories/ledgerSessions.repository.js';
 import * as auditLogsRepo from '../db/repositories/auditLogs.repository.js';
@@ -135,7 +135,7 @@ transactionsRouter.post('/', async (req, res, next) => {
     const { ownerId, ownerName } = await resolveOwner(body.ownerId, user, groupId);
     const onBehalf = ownerId !== user.id;
 
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await transaction(async (tx) => {
       const session = await ledgerSessionsRepo.ensureActive(groupId, tx);
       const row = await transactionsRepo.create(
         {
@@ -206,7 +206,7 @@ transactionsRouter.patch('/:id', async (req, res, next) => {
     const category = body.category === undefined ? existing.category : String(body.category || '').trim();
     if (!isValidCategory(type, category)) throw new HttpError(400, 'Choose a valid category');
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await transaction(async (tx) => {
       const row = await transactionsRepo.update(
         existing.id,
         {
@@ -254,7 +254,7 @@ transactionsRouter.delete('/:id', async (req, res, next) => {
       throw new HttpError(403, 'You can only delete entries you recorded or that are yours');
     }
 
-    await prisma.$transaction(async (tx) => {
+    await transaction(async (tx) => {
       await transactionsRepo.softDelete(existing.id, user.id, tx);
       await auditLogsRepo.create(
         {

@@ -1,7 +1,7 @@
 import type { Request } from 'express';
 import { Router } from 'express';
 import { Prisma } from '@prisma/client';
-import { prisma } from '../db/prisma.js';
+import { transaction, prisma } from '../db/prisma.js';
 import * as usersRepo from '../db/repositories/users.repository.js';
 import * as sessionsRepo from '../db/repositories/sessions.repository.js';
 import * as auditLogsRepo from '../db/repositories/auditLogs.repository.js';
@@ -189,7 +189,7 @@ supportRouter.patch('/partners/:userId/phone', async (req, res, next) => {
     if (previous === phone) throw new HttpError(400, 'That is already their number');
 
     try {
-      await prisma.$transaction(async (tx) => {
+      await transaction(async (tx) => {
         await usersRepo.updateProfile(member.userId, { phone }, tx);
         await logSupport(member.groupId, 'support.phone_changed', member.userId, {
           partnerName: member.user.name, previous, updated: phone,
@@ -219,7 +219,7 @@ supportRouter.patch('/partners/:userId/pin', async (req, res, next) => {
     const member = await prisma.ledgerMember.findUnique({ where: { userId: req.params.userId }, include: { user: true } });
     if (!member) throw new HttpError(404, 'No Ledger+ partner with that id');
 
-    await prisma.$transaction(async (tx) => {
+    await transaction(async (tx) => {
       await usersRepo.updatePasswordHash(member.userId, hashPin(pin), tx);
       // Every device holding the old PIN's session is signed out. Leaving them live would
       // mean the reset had not really taken effect anywhere it mattered.
@@ -273,7 +273,7 @@ supportRouter.patch('/partnerships/:groupId', async (req, res, next) => {
     if (Object.keys(data).length === 0) throw new HttpError(400, 'Nothing to change');
 
     try {
-      await prisma.$transaction(async (tx) => {
+      await transaction(async (tx) => {
         await tx.group.update({ where: { id: group.id }, data });
         await logSupport(group.id, 'support.partnership_updated', group.id, details as Prisma.InputJsonValue, tx);
       });
@@ -319,7 +319,7 @@ supportRouter.patch('/partnerships/:groupId/frozen', async (req, res, next) => {
       throw new HttpError(409, frozen ? 'Already frozen' : 'Not currently frozen');
     }
 
-    await prisma.$transaction(async (tx) => {
+    await transaction(async (tx) => {
       await tx.group.update({ where: { id: group.id }, data: { frozen } });
       await logSupport(group.id, frozen ? 'support.frozen' : 'support.unfrozen', group.id, {
         groupCode: group.code,

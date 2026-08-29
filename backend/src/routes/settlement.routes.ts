@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { Prisma } from '@prisma/client';
-import { LONG_TX, prisma } from '../db/prisma.js';
+import { transaction, prisma } from '../db/prisma.js';
 import * as ledgerSessionsRepo from '../db/repositories/ledgerSessions.repository.js';
 import * as settlementsRepo from '../db/repositories/settlements.repository.js';
 import * as transactionsRepo from '../db/repositories/transactions.repository.js';
@@ -78,10 +78,7 @@ settlementRouter.post('/close', async (req, res, next) => {
       );
     }
 
-    const result = await prisma.$transaction(
-      (tx) => closeActiveSession(groupId, groupCode, { id: user.id, name: user.name }, tx),
-      LONG_TX,
-    );
+    const result = await transaction((tx) => closeActiveSession(groupId, groupCode, { id: user.id, name: user.name }, tx));
 
     broadcast(groupCode, 'session-changed', { reason: 'settled', actor: actorOf(req) });
     res.status(201).json({
@@ -114,10 +111,7 @@ settlementRouter.post('/history/:id/paid', async (req, res, next) => {
       );
     }
 
-    const updated = await prisma.$transaction(
-      (tx) => markSettlementPaid(groupId, req.params.id, { id: user.id, name: user.name }, tx),
-      LONG_TX,
-    );
+    const updated = await transaction((tx) => markSettlementPaid(groupId, req.params.id, { id: user.id, name: user.name }, tx));
 
     broadcast(groupCode, 'session-changed', { reason: 'settlement-paid', actor: actorOf(req) });
     res.json({ settlement: serializeSettlement(updated) });
@@ -135,7 +129,7 @@ settlementRouter.delete('/history/:id/paid', async (req, res, next) => {
     if (!settlement) throw new HttpError(404, 'Settlement not found');
     if (!settlement.paidAt) throw new HttpError(409, 'This settlement is not marked as paid.');
 
-    const updated = await prisma.$transaction(async (tx) => {
+    const updated = await transaction(async (tx) => {
       const row = await settlementsRepo.setPaid(settlement.id, null, tx);
       await auditLogsRepo.create({
         groupId, sessionId: settlement.sessionId, userId: user.id, userName: user.name,

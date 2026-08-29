@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { prisma } from '../db/prisma.js';
+import { transaction, prisma } from '../db/prisma.js';
 import * as groupsRepo from '../db/repositories/groups.repository.js';
 import * as usersRepo from '../db/repositories/users.repository.js';
 import * as membersRepo from '../db/repositories/members.repository.js';
@@ -49,7 +49,7 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
     validatePinPair(pin, confirmPin);
     if (mode === 'join' && !requestedCode) throw new HttpError(400, 'Enter the group code your partner shared');
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await transaction(async (tx) => {
       let group;
       let memberRole: 'owner' | 'partner';
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { prisma } from '../db/prisma.js';
+import { transaction, prisma } from '../db/prisma.js';
 import * as usersRepo from '../db/repositories/users.repository.js';
 import * as membersRepo from '../db/repositories/members.repository.js';
 import * as sessionsRepo from '../db/repositories/sessions.repository.js';
@@ -61,7 +61,7 @@ accountRouter.post('/change-pin', changePinLimiter, async (req, res, next) => {
     if (newPin !== confirmPin) throw new HttpError(400, 'The two PINs do not match');
     if (newPin === currentPin) throw new HttpError(400, 'Choose a PIN different from your current one');
 
-    await prisma.$transaction(async (tx) => {
+    await transaction(async (tx) => {
       await usersRepo.updatePasswordHash(user.id, hashPin(newPin), tx);
       // Every other device is logged out. A session opened under the old PIN outliving the
       // change would defeat the point of changing it.

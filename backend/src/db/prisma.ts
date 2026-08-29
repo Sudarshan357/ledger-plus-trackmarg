@@ -21,17 +21,25 @@ const adapter = new PrismaPg({
 
 export const prisma = new PrismaClient({ adapter });
 
-/// Options for the multi-step interactive transactions (closing a session, amending a
-/// settlement, approving either).
+/// Prisma's defaults are 2s to acquire a connection and 5s to run the transaction. Those are
+/// generous against a local database and far too tight against this one: Supabase is in
+/// ap-northeast-2, every round trip costs 150-800ms, and the multi-step transactions here
+/// (registering a partnership, closing a session, amending a settlement) each make eight to
+/// eleven of them - plus, in some, a `SELECT … FOR UPDATE` that may be waiting on the other
+/// partner's device.
 ///
-/// Prisma's defaults are 2s to acquire and 5s to run. Those are generous against a local
-/// database and far too tight against this one: Supabase is in ap-northeast-2, every round
-/// trip costs 150-200ms, and closing a session takes about eleven of them inside a single
-/// transaction - plus a `SELECT … FOR UPDATE` that may be waiting on the other partner's
-/// device. That lands close enough to 5s that it intermittently aborted with P2028 and
-/// surfaced as a 500 on approval. Raised deliberately rather than by trimming the queries,
-/// because every one of them belongs inside the transaction.
-export const LONG_TX = { timeout: 20_000, maxWait: 10_000 };
+/// Both of those aborted intermittently with P2028 and surfaced as a 500. Raised rather than
+/// solved by trimming queries, because every one of them belongs inside its transaction.
+const LONG_TX = { timeout: 20_000, maxWait: 10_000 };
+
+/// Use this for every interactive transaction instead of `prisma.$transaction` directly.
+///
+/// The timeout was originally passed per call site, and the call site that mattered most -
+/// registration, the longest chain in the app - was the one that never got it. A helper that
+/// applies it by construction is the only version of this fix that stays fixed.
+export function transaction<T>(fn: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+  return prisma.$transaction(fn, LONG_TX);
+}
 
 // Every repository function takes this as its client parameter (defaulting to the singleton)
 // instead of importing `prisma` directly - that is what lets a route compose several

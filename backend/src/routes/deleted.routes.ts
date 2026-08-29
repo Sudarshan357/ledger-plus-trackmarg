@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { prisma } from '../db/prisma.js';
+import { transaction, prisma } from '../db/prisma.js';
 import * as transactionsRepo from '../db/repositories/transactions.repository.js';
 import * as ledgerSessionsRepo from '../db/repositories/ledgerSessions.repository.js';
 import * as auditLogsRepo from '../db/repositories/auditLogs.repository.js';
@@ -72,7 +72,7 @@ deletedRouter.delete('/:id', async (req, res, next) => {
 
     const { names } = await loadPartners(groupId);
 
-    await prisma.$transaction(async (tx) => {
+    await transaction(async (tx) => {
       // The audit entry is written BEFORE the row goes, and carries a full snapshot of it.
       // Once the delete lands this is the only remaining trace that the money ever existed,
       // which is exactly why it must not depend on the row still being there.

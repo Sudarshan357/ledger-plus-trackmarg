@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { Prisma } from '@prisma/client';
-import { LONG_TX, prisma } from '../db/prisma.js';
+import { transaction, prisma } from '../db/prisma.js';
 import * as approvalsRepo from '../db/repositories/approvals.repository.js';
 import * as membersRepo from '../db/repositories/members.repository.js';
 import * as settlementsRepo from '../db/repositories/settlements.repository.js';
@@ -80,10 +80,7 @@ approvalsRouter.post('/close-session', async (req, res, next) => {
 
     // Solo partnership: nobody to ask, so do it now.
     if (memberCount < 2) {
-      const result = await prisma.$transaction(
-        (tx) => closeActiveSession(groupId, groupCode, { id: user.id, name: user.name }, tx),
-        LONG_TX,
-      );
+      const result = await transaction((tx) => closeActiveSession(groupId, groupCode, { id: user.id, name: user.name }, tx));
       broadcast(groupCode, 'session-changed', { reason: 'settled', actor: actorOf(req) });
       return res.status(201).json({
         applied: true,
@@ -146,10 +143,7 @@ approvalsRouter.post('/amend-settlement', async (req, res, next) => {
 
     const memberCount = await membersRepo.countByGroup(groupId);
     if (memberCount < 2) {
-      const updated = await prisma.$transaction(
-        (tx) => amendSettlement(groupId, groupCode, settlement.id, entry, { id: user.id, name: user.name }, tx),
-        LONG_TX,
-      );
+      const updated = await transaction((tx) => amendSettlement(groupId, groupCode, settlement.id, entry, { id: user.id, name: user.name }, tx));
       broadcast(groupCode, 'ledger-changed', { reason: 'amended', actor: actorOf(req) });
       return res.status(200).json({ applied: true, settlement: serializeSettlement(updated) });
     }
@@ -197,10 +191,7 @@ approvalsRouter.post('/mark-paid', async (req, res, next) => {
 
     const memberCount = await membersRepo.countByGroup(groupId);
     if (memberCount < 2) {
-      const updated = await prisma.$transaction(
-        (tx) => markSettlementPaid(groupId, settlement.id, { id: user.id, name: user.name }, tx),
-        LONG_TX,
-      );
+      const updated = await transaction((tx) => markSettlementPaid(groupId, settlement.id, { id: user.id, name: user.name }, tx));
       broadcast(groupCode, 'session-changed', { reason: 'settlement-paid', actor: actorOf(req) });
       return res.status(200).json({ applied: true, settlement: serializeSettlement(updated) });
     }
@@ -247,7 +238,7 @@ approvalsRouter.post('/:id/approve', async (req, res, next) => {
       throw new HttpError(403, 'Your partner has to approve this, not you.');
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await transaction(async (tx) => {
       // Marking it decided first, conditional on it still being pending, means a double-tap
       // or a race cannot execute the change twice.
       const claimed = await approvalsRepo.decide(approval.id, 'approved', user.id, tx);
@@ -291,7 +282,7 @@ approvalsRouter.post('/:id/approve', async (req, res, next) => {
         details: { kind: approval.kind, requestedBy: actor.name },
       }, tx);
       return { kind: 'amend_settlement' as const, settlement: updated };
-    }, LONG_TX);
+    });
 
     broadcast(groupCode, 'session-changed', { reason: 'approval-approved', actor: actorOf(req) });
     res.json({

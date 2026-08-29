@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { Prisma } from '@prisma/client';
-import { prisma, LONG_TX } from '../db/prisma.js';
+import { transaction, prisma } from '../db/prisma.js';
 import * as transactionsRepo from '../db/repositories/transactions.repository.js';
 import * as ledgerSessionsRepo from '../db/repositories/ledgerSessions.repository.js';
 import * as settlementsRepo from '../db/repositories/settlements.repository.js';
@@ -170,7 +170,7 @@ backupRouter.post('/restore', async (req, res, next) => {
       return res.json({ imported: 0, skipped, reassigned, rejected: rejected.length });
     }
 
-    await prisma.$transaction(async (tx) => {
+    await transaction(async (tx) => {
       // skipDuplicates covers the race where the other partner restores the same file at the
       // same moment; the unique (groupId, sourceId) index is the real guarantee.
       await tx.ledgerTransaction.createMany({ data: prepared, skipDuplicates: true });
@@ -191,7 +191,7 @@ backupRouter.post('/restore', async (req, res, next) => {
         },
         tx,
       );
-    }, LONG_TX);
+    });
 
     broadcast(groupCode, 'ledger-changed', { reason: 'restored', actor: actorOf(req) });
     res.json({ imported, skipped, reassigned, rejected: rejected.length });
