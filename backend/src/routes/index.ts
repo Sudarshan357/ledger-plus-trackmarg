@@ -31,8 +31,28 @@ apiRouter.use((_req, res, next) => {
   next();
 });
 
+/// Liveness. Deliberately touches NOTHING - no database, no GitHub, no disk.
+///
+/// Two jobs, and both depend on it staying trivial. Render polls it as the service's health
+/// check, so anything slow or flaky here would have Render restarting a healthy process in the
+/// middle of someone's write. And an uptime monitor polls it every few minutes to keep a free
+/// instance from spinning down, which must not mean a database query every few minutes forever.
+///
+/// It is therefore NOT a dependency check: this answering 200 means "the process is up", not
+/// "everything works". A monitor on a route that does touch the database is a separate,
+/// deliberate thing to add - see README.
 apiRouter.get('/health', (_req, res) => {
-  res.json({ ok: true, app: 'ledger-plus' });
+  res.json({
+    ok: true,
+    status: 'ok',
+    app: 'ledger-plus',
+    timestamp: new Date().toISOString(),
+    // Seconds since this process started. The useful number when a keep-alive ping is meant to
+    // stop the host sleeping: if it keeps resetting to near zero, the pings are not landing and
+    // the instance is still being spun down between them.
+    uptime: Math.round(process.uptime()),
+    build: config.build.buildId,
+  });
 });
 
 // Deliberately public and above requireAuth: a client needs to be able to discover that it is
