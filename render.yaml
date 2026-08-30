@@ -27,7 +27,11 @@ services:
     # stays up - it is the single biggest difference to how the app feels.
     plan: free
 
-    buildCommand: npm ci && npx prisma generate && npm run build:info && npm run build:web && npm run build:backend && npm run db:migrate
+    # --include=dev is load-bearing. NODE_ENV=production is set below for the RUNTIME, but env
+    # vars apply to the build too, and under it `npm ci` omits devDependencies - which is where
+    # every tool this build needs lives: typescript, vite, tsx and the prisma CLI. Without the
+    # flag the install succeeds and the very next command fails with "prisma: not found".
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build:info && npm run build:web && npm run build:backend && npm run db:migrate
     startCommand: node backend/dist/index.js
 
     # Cheap, unauthenticated, and touches no database - so a slow query can never make Render
