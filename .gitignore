@@ -9,3 +9,5 @@ tsconfig.tsbuildinfo
 _*.mjs
 _*.log
 build-info.json
+.env.new
+.env.backup*
