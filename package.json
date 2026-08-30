@@ -18,6 +18,7 @@
     "deploy": "node scripts/deploy.mjs",
     "watch": "node scripts/watch-deploy.mjs",
     "release": "node scripts/release.mjs",
+    "apk": "node scripts/build-apk.mjs",
     "tunnel": "cloudflared tunnel --url http://localhost:4000",
     "preview": "vite preview",
     "db:generate": "prisma generate",
@@ -27,6 +28,8 @@
     "lint": "tsc -b --noEmit && tsc -p backend/tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "cors": "^2.8.5",
@@ -42,6 +45,7 @@
     "react-router-dom": "^7.7.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^24.3.0",

@@ -12,3 +12,12 @@ build-info.json
 .env.new
 .env.backup*
 .tunnel-url
+
+# Android build output - the APK is rebuilt from source, never committed.
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+android/app/src/main/assets/public/
+android/app/src/main/assets/capacitor.config.json
+*.apk
