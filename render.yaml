@@ -1,0 +1,62 @@
+# Render blueprint for Ledger+.
+#
+# Why this exists: until now the API only lived while the laptop was on, published through a
+# Cloudflare Tunnel. Close the lid and every phone lost its server. Render runs it on a
+# machine that does not sleep when yours does.
+#
+# The Android app has https://ledger.trackmarg.in baked into it at build time, so the domain
+# is what moves - not the app. Point that hostname at this service and every installed APK
+# keeps working untouched. See RENDER.md for the DNS switch.
+#
+# To use: Render Dashboard -> New -> Blueprint -> pick this repo. It reads this file and
+# prompts for the four secrets below, which are deliberately NOT stored here.
+
+services:
+  - type: web
+    name: ledger-plus
+    runtime: node
+    # Same region as the Supabase project (ap-southeast-1). Every request does several
+    # round trips to Postgres, so putting the app on another continent from its database is
+    # felt directly - this app already went from 3.7s to 1.3s on a bootstrap by cutting round
+    # trips, and cross-region latency would hand all of that back.
+    region: singapore
+
+    # FREE TIER SPINS DOWN after 15 minutes with no traffic, and the next request waits
+    # roughly a minute for a cold start. For an app a partner opens a few times a day that
+    # means most opens are the slow one. Change to `starter` (paid) for an instance that
+    # stays up - it is the single biggest difference to how the app feels.
+    plan: free
+
+    buildCommand: npm ci && npx prisma generate && npm run build:info && npm run build:web && npm run build:backend && npm run db:migrate
+    startCommand: node backend/dist/index.js
+
+    # Cheap, unauthenticated, and touches no database - so a slow query can never make Render
+    # think the service is down and restart it mid-write.
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: NODE_ENV
+        value: production
+
+      # PORT is set by Render itself and must not be pinned here - config.port already reads
+      # it. Hard-coding 4000 would leave the service listening where nothing routes to it.
+
+      # VITE_API_URL is deliberately absent. The web build must use relative /api so the app
+      # works under whatever hostname it is reached by; setting this would nail every browser
+      # to one fixed address. The ANDROID build is the one that needs an absolute address,
+      # and it gets it from VITE_NATIVE_API_URL at APK build time instead.
+
+      # sync: false means "prompt me, do not keep it in the repo". Four values to paste in:
+      - key: DATABASE_URL # Supabase pooled connection, port 6543
+        sync: false
+      - key: DIRECT_URL # Supabase direct connection, port 5432 - migrations need this
+        sync: false
+      - key: SESSION_SECRET # must match what is already live, or every session is invalidated
+        sync: false
+      - key: LEDGER_SUPPORT_PASSWORD # leave unset to disable the support console entirely
+        sync: false
+
+      - key: GITHUB_RELEASE_REPO
+        value: Sudarshan357/ledger-plus-releases

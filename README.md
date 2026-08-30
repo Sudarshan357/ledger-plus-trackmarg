@@ -73,10 +73,15 @@ npm start              # build frontend + backend, then serve everything on :400
 
 ## Putting it on the internet
 
-`npm run start:public` builds the app, serves it, and opens a Cloudflare Tunnel — a public
-HTTPS address for the server running on this PC, with no router ports opened and no trouble
-with CGNAT. See [CLOUDFLARE.md](CLOUDFLARE.md) for the throwaway URL, the permanent
-domain-backed setup, and running both as Windows services.
+Hosted on **Render** — see [RENDER.md](RENDER.md). A tunnel from a laptop is only up while the
+laptop is, and the installed Android app has `ledger.trackmarg.in` baked in, so the server
+behind that hostname has to be somewhere that does not sleep. Render deploys on push to
+`main`; nothing local is involved.
+
+For local development, or to serve from this PC temporarily, `npm run start:public` builds the
+app, serves it, and opens a Cloudflare Tunnel — a public HTTPS address with no router ports
+opened and no trouble with CGNAT. See [CLOUDFLARE.md](CLOUDFLARE.md) for the throwaway URL,
+the permanent domain-backed setup, and running both as Windows services.
 
 Two things this required:
 
