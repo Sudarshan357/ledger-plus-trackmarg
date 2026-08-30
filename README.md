@@ -21,8 +21,8 @@ separate group-code registry.
 | Ledger data | The `ledger` Postgres schema |
 
 It did not start this way. Ledger+ was originally built against the transport app's database,
-reading and writing its `public.Group` / `User` / `Session` directly, so a partnership *was*
-a Trackmarg group. Two things remain from that:
+reading and writing its `public.Group` / `User` / `Session` directly, so a partnership *was* a
+Trackmarg group. Two things remain from that:
 
 - **The conventions.** Group codes are minted as `TM` + 4 digits and stored normalized
   (`TM4821`) using Trackmarg's own `normalizeGroupCode` rules, then displayed as `TM-4821`, so
@@ -32,27 +32,9 @@ a Trackmarg group. Two things remain from that:
   complete no-op, so pointing back there is a one-line change rather than a rebuild.
 
 What is gone is the *linkage*. A group code in Ledger+ means nothing in the transport app, and
-either may mint one the other already has. Tokens are HMAC-signed with a secret derived from
-`SESSION_SECRET` plus an `aud: 'ledger'` claim — which mattered enormously while the secret
-was shared, and is now simply good hygiene.
-
---- | --- |
-| Group codes, accounts, auth sessions | `public.Group`, `public.User`, `public.Session` — the existing Trackmarg tables, read and written directly |
-| PIN hashing | The same PBKDF2 (100k iterations, `salt:hash`) the transport app uses, so a hash written by either app verifies in the other |
-| Ledger data | A separate **`ledger` Postgres schema**, owned entirely by this app |
-
-**The transport app is unaffected.** Its Prisma datasource only looks at `public`, so the
-`ledger` schema is invisible to its migration engine and can never appear as drift. Verified:
-`public` still contains exactly its 14 declared models plus `_prisma_migrations`, with no
-columns added to `Group` or `User`, and no file in that repo was modified.
-
-Group codes are minted as `TM` + 4 digits and **stored normalized** (`TM4821`) using
-Trackmarg's own `normalizeGroupCode` rules, then displayed as `TM-4821`. A partner can type
-the code with or without the hyphen, in any case, and still land in the right group.
-
-Tokens are HMAC-signed with a **derived** secret (`SESSION_SECRET` → HMAC → ledger key) plus an
-`aud: 'ledger'` claim, so a Ledger+ token is not a valid transport token and vice versa —
-the same domain-separation trick the transport app's support console uses.
+either may mint one the other already has. Tokens are still HMAC-signed with a secret derived
+from `SESSION_SECRET` plus an `aud: 'ledger'` claim — which mattered enormously while the
+secret was shared, and is now simply good hygiene.
 
 ---
 
@@ -85,7 +67,7 @@ npm start              # build frontend + backend, then serve everything on :400
 | `npm run lint` | Typecheck both halves |
 
 `.env` carries `DATABASE_URL` (pooled, :6543), `DIRECT_URL` (direct, :5432, for DDL) and
-`SESSION_SECRET`, all copied from the Trackmarg app so the two stay in sync.
+`SESSION_SECRET` — all belonging to this app's own Supabase project.
 
 ---
 
