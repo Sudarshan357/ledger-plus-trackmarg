@@ -170,6 +170,29 @@ granted *install unknown apps* first, which the banner detects and deep-links to
 install completed is not observable from inside the app; the authoritative signal is the
 `versionCode` no longer matching on the next resume.
 
+### Offline
+
+The app carries its whole UI, so opening it with no network shows Ledger+ rather than a
+browser error. That alone is not much use — the furthest you could get is the PIN screen,
+because unlocking asks the server. So the device keeps two things: a snapshot of the last
+successful load, and a PBKDF2 verifier that can check a PIN locally.
+
+The server stays the authority whenever it can be reached. Only a *network-level* failure
+falls back to the local check — a 401 is a wrong PIN and stays wrong, because a local retry
+could only ever overrule a correct rejection. The verifier is written only after the server
+has accepted that PIN, so the two can never disagree, and both it and the snapshot are wiped
+on logout and on any 401: the next person to sign in on that phone must not be able to unlock
+into the last partner's books. Offline guessing is rate-limited on the device (5 attempts,
+then 15 minutes), because the server's rate limiter is exactly what is missing there.
+
+**Offline is read-only, and says so.** Writes are refused rather than queued. This ledger has
+two authors, and a queued entry replayed on reconnect would land against a state that had
+moved on — the other partner may have settled the session or entered the same expense from
+their own phone. In an app whose purpose is agreeing on money, quietly wrong is far worse than
+plainly unavailable. The banner names the age of the figures, not just the fact, because
+"synced moments ago" and "synced yesterday" are the difference between numbers you can act on
+and numbers you cannot.
+
 ### The signing key
 
 `~/.ledger-plus/` holds the release keystore and its password. **Back that folder up.** Android

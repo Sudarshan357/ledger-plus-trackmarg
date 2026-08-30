@@ -17,6 +17,14 @@ import {
   setToken,
   takeUnlockGrant,
 } from '../api/client';
+import {
+  clearOfflineData,
+  loadSnapshot,
+  onConnectivityChange,
+  savePinVerifier,
+  saveSnapshot,
+  tryOfflineUnlock,
+} from '../lib/offline';
 import type { Me, Overview, PendingApproval, Transaction, TxnType } from '../lib/types';
 
 /// What GET /bootstrap returns: everything the app renders, in one request.
@@ -57,6 +65,12 @@ interface AppState {
   pendingApproval: PendingApproval | null;
   loading: boolean;
   error: string | null;
+  /// Showing cached figures because the server could not be reached. Read-only: saving is
+  /// refused while this is true, because the ledger has two authors and a queued write would
+  /// be replayed against a state that had moved on.
+  offline: boolean;
+  /// When the cached figures were last read from the server. Null when they are live.
+  lastSyncedAt: number | null;
 
   register: (input: RegisterInput) => Promise<void>;
   login: (input: { groupCode: string; phone: string; pin: string }) => Promise<void>;
@@ -90,6 +104,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
 
   // Guards against a slow response from a previous session landing after a newer one and
   // repainting the screen with stale figures.
@@ -118,13 +134,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTransactions(data.transactions);
       setPendingApproval(data.pendingApproval);
       setError(null);
+      // Back on live data, whatever we were showing before.
+      setOffline(false);
+      setLastSyncedAt(null);
+      // Kept for the next launch without a network. Written here rather than at any single
+      // call site so it covers every path that refreshes - unlock, resume, SSE, polling.
+      saveSnapshot(data.user.id, data);
       return true;
     } catch (err) {
       if (seq !== requestSeq.current) return false;
       if (err instanceof ApiError && err.status === 401) {
         setToken(null);
+        // The session is gone, so the cache behind it must go too: it belongs to a partner
+        // who is no longer signed in on this device.
+        clearOfflineData();
         setStatus('signed-out');
         return false;
+      }
+      // status 0 is a network-level failure, not a server that said no. If there are cached
+      // figures, showing them beats showing nothing - as long as it is labelled.
+      if (err instanceof ApiError && err.status === 0) {
+        const snap = loadSnapshot<Bootstrap>();
+        if (snap) {
+          const data = snap.data;
+          setMe({
+            user: data.user,
+            group: data.group,
+            role: data.role,
+            partners: data.partners,
+            session: data.session,
+          });
+          setOverview(data.overview);
+          setTransactions(data.transactions);
+          setPendingApproval(data.pendingApproval);
+          setOffline(true);
+          setLastSyncedAt(snap.at);
+          setError(null);
+          return true;
+        }
       }
       // Frozen is a state the app sits in, not a message to show over a half-loaded screen.
       // Everything already loaded is dropped, the same as locking.
@@ -252,10 +299,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
   }, [status, loadAll]);
 
+  // Offline is a state to leave as soon as possible, not one to sit in until the next poll.
+  // navigator.onLine firing is only a hint that something changed - loadAll is what actually
+  // decides, by trying, and it falls straight back to the snapshot if the network lied.
+  useEffect(() => {
+    if (!offline || status !== 'ready') return;
+    return onConnectivityChange(() => void loadAll(true));
+  }, [offline, status, loadAll]);
+
   const register = useCallback(
     async (input: RegisterInput) => {
       const res = await api<{ token: string }>('/auth/register', { method: 'POST', body: input });
       setToken(res.token);
+      // A fresh device: whatever was cached belonged to whoever used it last.
+      clearOfflineData();
+      void savePinVerifier(input.pin);
       if (await loadAll()) setStatus('ready');
     },
     [loadAll],
@@ -265,6 +323,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (input: { groupCode: string; phone: string; pin: string }) => {
       const res = await api<{ token: string }>('/auth/login', { method: 'POST', body: input });
       setToken(res.token);
+      clearOfflineData();
+      void savePinVerifier(input.pin);
       if (await loadAll()) setStatus('ready');
     },
     [loadAll],
@@ -272,9 +332,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const unlock = useCallback(
     async (pin: string) => {
-      // Verified by the server against the stored PIN hash, not compared in the browser -
-      // an unlock the client could decide on its own would not be a lock at all.
-      await api('/account/unlock', { method: 'POST', body: { pin } });
+      try {
+        // The server is the authority whenever it can be reached: it holds the real PIN hash
+        // and it rate-limits. An unlock the client decided on its own would not be a lock.
+        await api('/account/unlock', { method: 'POST', body: { pin } });
+      } catch (err) {
+        // Only a network failure falls back. A 401 from the server is a wrong PIN and must
+        // stay wrong - checking again locally could only ever overrule a correct rejection.
+        if (!(err instanceof ApiError && err.status === 0)) throw err;
+
+        const snap = loadSnapshot<Bootstrap>();
+        if (!snap) throw err;
+
+        const result = await tryOfflineUnlock(pin);
+        if (result === 'locked-out') {
+          throw new ApiError(0, 'Too many attempts. Try again in a few minutes, or reconnect.');
+        }
+        if (result === 'unavailable') {
+          throw new ApiError(0, 'Cannot reach the server, and this device has nothing saved to unlock with.');
+        }
+        if (result === 'wrong-pin') throw new ApiError(0, 'Incorrect PIN.');
+
+        // loadAll will fail the same way this did and fall through to the snapshot, which
+        // keeps the offline entry path identical to the offline refresh path.
+        if (await loadAll()) setStatus('ready');
+        return;
+      }
+
+      // Recorded only after the server agreed, so it can never disagree with the real PIN.
+      void savePinVerifier(pin);
       if (await loadAll()) setStatus('ready');
     },
     [loadAll],
@@ -296,10 +382,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
       // A revoke that fails (offline, expired) must still clear this device.
     }
     setToken(null);
+    // The figures and the PIN verifier are this partner's; the next person to sign in on this
+    // phone must not be able to unlock into them.
+    clearOfflineData();
     setMe(null);
     setOverview(null);
     setTransactions([]);
     setPendingApproval(null);
+    setOffline(false);
+    setLastSyncedAt(null);
     setStatus('signed-out');
   }, []);
 
@@ -319,8 +410,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (await loadAll(true)) setStatus('ready');
   }, [loadAll]);
 
+  /// Why writes are refused rather than queued.
+  ///
+  /// This ledger has two authors. A queued entry would be replayed later against a state that
+  /// had moved on - the other partner may have settled the session, started a fresh one, or
+  /// entered the same expense from their own phone. Replaying blindly invents figures neither
+  /// of them entered, and in an app whose whole purpose is agreeing on money, quietly wrong
+  /// is far worse than plainly unavailable. Offline is read-only, and says so.
+  const refuseOffline = useCallback(() => {
+    if (offline) {
+      throw new ApiError(0, 'You are offline. Reconnect to save - your ledger is shown as of the last sync.');
+    }
+  }, [offline]);
+
   const addTransaction = useCallback(
     async (input: NewTransaction) => {
+      refuseOffline();
       const { transaction } = await api<{ transaction: Transaction }>('/transactions', {
         method: 'POST',
         body: input,
@@ -328,16 +433,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setTransactions((prev) => [transaction, ...prev]);
       void loadAll(true);
     },
-    [loadAll],
+    [loadAll, refuseOffline],
   );
 
   const deleteTransaction = useCallback(
     async (id: string) => {
+      refuseOffline();
       await api(`/transactions/${id}`, { method: 'DELETE' });
       setTransactions((prev) => prev.filter((txn) => txn.id !== id));
       void loadAll(true);
     },
-    [loadAll],
+    [loadAll, refuseOffline],
   );
 
   const value = useMemo<AppState>(
@@ -349,6 +455,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       pendingApproval,
       loading,
       error,
+      offline,
+      lastSyncedAt,
       register,
       login,
       unlock,
@@ -364,7 +472,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       deleteTransaction,
     }),
     [
-      status, me, overview, transactions, pendingApproval, loading, error,
+      status, me, overview, transactions, pendingApproval, loading, error, offline, lastSyncedAt,
       register, login, unlock, lock, logout, loadAll, retryFrozen, addTransaction, deleteTransaction,
     ],
   );

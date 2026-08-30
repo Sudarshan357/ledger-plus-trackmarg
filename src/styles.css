@@ -1689,3 +1689,29 @@ textarea.input {
   margin-top: 18px;
   padding: 0 0 0 20px;
 }
+
+/* Offline notice. Amber rather than red: the app is working and the figures are real, they
+   are just from the last sync - red would read as an error the user could fix. */
+.offline-bar {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 16px;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.offline-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.75;
+}
+
+.offline-text {
+  flex: 1;
+}

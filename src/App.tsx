@@ -29,6 +29,7 @@ import {
 import { ChangePinScreen } from './screens/settings/ChangePinScreen';
 import { SupportConsole } from './screens/SupportConsole';
 import { UpdateBanner } from './components/UpdateBanner';
+import { OfflineBanner } from './components/OfflineBanner';
 import { useAppUpdate } from './lib/version';
 
 // The four tabbed screens keep the bottom bar; anything pushed on top of them (Add
@@ -109,6 +110,7 @@ function Shell() {
     <div className="shell">
       <ScrollBehaviour />
       <UpdateBanner update={update} />
+      <OfflineBanner />
       <Routes>
         <Route path="/" element={<HomeScreen />} />
         <Route path="/ledger" element={<LedgerScreen />} />
