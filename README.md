@@ -9,14 +9,34 @@ partner, and settling a session archives it in full before the next one starts f
 
 ---
 
-## How it connects to Trackmarg
+## Its own database
 
-Ledger+ is a standalone app that **shares Trackmarg's database and identity system** rather
-than duplicating them. It runs against the same Supabase Postgres as the transport app in
-`c:/Users/polsu/shivam-transport`, with the same `SESSION_SECRET`.
+Ledger+ runs on its own Supabase project (`ap-southeast-1`) and owns every table in it. It
+shares nothing with the Trackmarg transport app: separate database, separate `SESSION_SECRET`,
+separate group-code registry.
 
 | Concern | Where it lives |
 | --- | --- |
+| Accounts, group codes, auth sessions | `public.Group`, `public.User`, `public.Session` — created and owned by this app (`0000_public_baseline.sql`) |
+| Ledger data | The `ledger` Postgres schema |
+
+It did not start this way. Ledger+ was originally built against the transport app's database,
+reading and writing its `public.Group` / `User` / `Session` directly, so a partnership *was*
+a Trackmarg group. Two things remain from that:
+
+- **The conventions.** Group codes are minted as `TM` + 4 digits and stored normalized
+  (`TM4821`) using Trackmarg's own `normalizeGroupCode` rules, then displayed as `TM-4821`, so
+  a partner may type the code with or without the hyphen, in any case. PINs use the same
+  PBKDF2 (100k iterations, `salt:hash`).
+- **`0000_public_baseline.sql` is idempotent.** Applied to the old shared database it is a
+  complete no-op, so pointing back there is a one-line change rather than a rebuild.
+
+What is gone is the *linkage*. A group code in Ledger+ means nothing in the transport app, and
+either may mint one the other already has. Tokens are HMAC-signed with a secret derived from
+`SESSION_SECRET` plus an `aud: 'ledger'` claim — which mattered enormously while the secret
+was shared, and is now simply good hygiene.
+
+--- | --- |
 | Group codes, accounts, auth sessions | `public.Group`, `public.User`, `public.Session` — the existing Trackmarg tables, read and written directly |
 | PIN hashing | The same PBKDF2 (100k iterations, `salt:hash`) the transport app uses, so a hash written by either app verifies in the other |
 | Ledger data | A separate **`ledger` Postgres schema**, owned entirely by this app |
