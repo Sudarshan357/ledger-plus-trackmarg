@@ -1,5 +1,11 @@
 apply plugin: 'com.android.application'
 
+// Release-signing credentials come from the environment, never from the repo. scripts/
+// release.mjs sets them from a keystore kept outside the working tree. When they are absent
+// this falls back to debug signing, so `assembleRelease` still works on a fresh clone.
+def releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+def hasReleaseSigning = releaseKeystorePath != null && !releaseKeystorePath.isEmpty()
+
 android {
     namespace = "com.trackmarg.ledgerplus"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,13 +13,26 @@ android {
         applicationId "com.trackmarg.ledgerplus"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // Overridable with `-PversionCode=N -PversionName=X.Y.Z` (see scripts/release.mjs).
+        // versionCode must strictly increase or Android refuses to treat a new APK as an
+        // update at all - it is also the number the in-app update check compares against.
+        versionCode project.hasProperty('versionCode') ? (project.property('versionCode') as Integer) : 1
+        versionName project.hasProperty('versionName') ? project.property('versionName') : "0.0.1-dev"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (hasReleaseSigning) {
+                storeFile file(releaseKeystorePath)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
         }
     }
     buildTypes {
@@ -23,6 +42,7 @@ android {
             // and so blocks most of what R8 exists to do. Capacitor still scaffolds the old
             // name, so this needs correcting on every fresh `cap add android`.
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig hasReleaseSigning ? signingConfigs.release : signingConfigs.debug
         }
     }
 }

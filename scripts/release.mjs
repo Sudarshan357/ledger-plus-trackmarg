@@ -18,6 +18,9 @@
  * create or store.
  */
 import { execSync } from 'node:child_process';
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -115,16 +118,70 @@ const parts = versionName.split('.').map((n) => parseInt(n, 10) || 0);
 const versionCode = (parts[0] ?? 0) * 1_000_000 + (parts[1] ?? 0) * 1_000 + (parts[2] ?? 0);
 if (versionCode <= 0) fail(`Cannot derive a version number from "${tag}". Use a tag like v1.0.1.`);
 
+// ── Build the APK ───────────────────────────────────────────────────────────
+//
+// The Android app is packaged, not a shell around a URL, so a release is only real for phone
+// users once there is an APK behind it. `--no-apk` skips this for a web-only change: the
+// manifest then carries no apkUrl, and the app correctly offers nothing.
+const APK_NAME = 'ledger-plus.apk';
+const apkUrl = `https://github.com/${RELEASE_REPO}/releases/download/${tag}/${APK_NAME}`;
+
+/// Signing credentials live outside the repo. Sourced here rather than expected in the shell,
+/// so `npm run release` works from a plain terminal with nothing exported.
+function loadSigningEnv() {
+  const envFile = path.join(os.homedir(), '.ledger-plus', 'keystore.env');
+  if (!fs.existsSync(envFile)) return false;
+  for (const line of fs.readFileSync(envFile, 'utf8').split('\n')) {
+    const m = line.match(/^\s*(?:export\s+)?([A-Z_]+)="?([^"\n]*)"?\s*$/);
+    if (m && m[1].startsWith('ANDROID_')) process.env[m[1]] = m[2];
+  }
+  return Boolean(process.env.ANDROID_KEYSTORE_PATH);
+}
+
+let apkPath = null;
+let apkSha256 = null;
+
+if (!process.argv.includes('--no-apk')) {
+  const signed = loadSigningEnv();
+  if (!signed) {
+    // Shipping a debug-signed APK to clients would be a trap, not a shortcut: Android refuses
+    // to install an update whose signature differs from the installed app, so the first
+    // properly-signed release would strand everyone who took this one.
+    fail(
+      'No signing keystore found at ~/.ledger-plus/keystore.env.\n\n' +
+        'A release APK must be signed with the real key, or no future update can install\n' +
+        'over it. Restore that folder from your backup, or release the manifest alone with:\n\n' +
+        '  npm run release -- ' + tag + ' --no-apk',
+    );
+  }
+
+  console.log(`Building signed APK for ${tag}...`);
+  execSync(`node scripts/build-apk.mjs --release --version ${versionName} --code ${versionCode}`, {
+    cwd: root,
+    stdio: 'inherit',
+    env: process.env,
+  });
+
+  apkPath = path.join(root, 'ledger-plus-release.apk');
+  if (!fs.existsSync(apkPath)) fail('The APK build reported success but produced no file.');
+  // The app checks the APK it downloaded against this hash before handing it to Android's
+  // installer, so a truncated download fails with an honest message instead of "App not
+  // installed".
+  apkSha256 = crypto.createHash('sha256').update(fs.readFileSync(apkPath)).digest('hex');
+}
+
 const manifest = {
   versionCode,
   versionName,
   releaseNotes: releaseNotes.length ? releaseNotes : ['Bug fixes and improvements.'],
   forceUpdate,
   commit,
+  ...(apkSha256 ? { apkUrl, apkSha256 } : {}),
 };
 
-console.log(`Releasing ${tag} to ${RELEASE_REPO}`);
+console.log(`\nReleasing ${tag} to ${RELEASE_REPO}`);
 console.log(`  versionCode ${versionCode}${forceUpdate ? '   [MANDATORY UPDATE]' : ''}`);
+console.log(`  APK ${apkSha256 ? `${(fs.statSync(apkPath).size / 1048576).toFixed(1)} MB` : 'none (manifest only)'}`);
 for (const note of manifest.releaseNotes) console.log(`  • ${note}`);
 
 // ── Publish ─────────────────────────────────────────────────────────────────
@@ -149,29 +206,42 @@ if (!release.ok) {
   console.log(`  release ${tag} already exists - replacing its manifest`);
 }
 
-// Replace any existing version.json so re-running is safe rather than producing two assets
-// with the same name, only one of which the server would find.
+// Replace any existing assets so re-running is safe rather than producing two with the same
+// name, only one of which the server would find.
 for (const asset of release.body.assets ?? []) {
-  if (asset.name === 'version.json') {
+  if (asset.name === 'version.json' || asset.name === APK_NAME) {
     await gh(`/repos/${RELEASE_REPO}/releases/assets/${asset.id}`, { method: 'DELETE' });
   }
 }
 
 const uploadUrl = String(release.body.upload_url).replace(/\{.*$/, '');
-const upload = await fetch(`${uploadUrl}?name=version.json`, {
-  method: 'POST',
-  headers: {
-    Accept: 'application/vnd.github+json',
-    'User-Agent': 'ledger-plus-release',
-    Authorization: `Bearer ${token}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify(manifest, null, 2),
-});
 
-if (!upload.ok) {
-  fail(`Could not upload version.json (HTTP ${upload.status}): ${await upload.text()}`);
+async function uploadAsset(name, body, contentType) {
+  const res = await fetch(`${uploadUrl}?name=${encodeURIComponent(name)}`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/vnd.github+json',
+      'User-Agent': 'ledger-plus-release',
+      Authorization: `Bearer ${token}`,
+      'Content-Type': contentType,
+    },
+    body,
+  });
+  if (!res.ok) fail(`Could not upload ${name} (HTTP ${res.status}): ${await res.text()}`);
+  console.log(`  uploaded ${name}`);
 }
 
+// APK first. version.json is what the app reads, and it names an apkUrl - publishing the
+// manifest before the file it points at would leave a window where every phone is told an
+// update exists and every download 404s.
+if (apkPath) {
+  await uploadAsset(APK_NAME, fs.readFileSync(apkPath), 'application/vnd.android.package-archive');
+}
+await uploadAsset('version.json', JSON.stringify(manifest, null, 2), 'application/json');
+
 console.log(`\nPublished. ${release.body.html_url}`);
-console.log('Clients will show these notes with their next update prompt.');
+if (apkSha256) {
+  console.log('Phones will offer this as an in-app update; browsers will offer a reload.');
+} else {
+  console.log('Manifest only - browsers will offer a reload, phones will see no new version.');
+}

@@ -128,15 +128,56 @@ The server merges it into `/api/version` as an additive `release` field, and ser
 at `/api/app-version`. Every failure mode degrades to `null` rather than erroring — no
 release yet, GitHub unreachable, malformed manifest — and the prompt simply shows no name or
 notes. The flow (and the `[force-update]` convention) follows
-[mystio1/excavator-manager](https://github.com/mystio1/excavator-manager), so the same tags
-will work unchanged if an Android build is added later; `apkUrl` and `apkSha256` are already
-carried through the manifest for it.
+[mystio1/excavator-manager](https://github.com/mystio1/excavator-manager).
+
+`npm run release` also **builds and uploads a signed APK**, and puts its `apkUrl` and
+`apkSha256` in the manifest — that is what the Android app downloads. Use `--no-apk` for a
+web-only change; the manifest then carries no APK and phones correctly see no new version.
 
 Each build is stamped with the git commit and a timestamp (`scripts/build-info.mjs` →
 `build-info.json`). Vite bakes that into the bundle; Express serves it at `GET /api/version`.
 A running client compares the two on launch, whenever it returns to the foreground, and every
 15 minutes — and shows a slim **Update available** bar when the server has moved on. It
 reloads only when the user taps it, never on its own, so nothing half-typed is thrown away.
+
+## The Android app
+
+```bash
+npm run apk                    # debug build → ledger-plus.apk, for your own phone
+npm run release                # signed release build, published for everyone
+```
+
+The web build is packaged **inside** the APK. There is no `server.url`: the WebView never
+loads a remote page, every screen is a local file, and the only thing crossing the network is
+`fetch()` to the API — a native app calling a backend, not a browser loading a website.
+
+That is a trade, and worth being explicit about. An earlier version was a thin shell around
+`https://ledger.trackmarg.in`, which got every web deploy for free; the cost was that it *was*
+only a URL — no version of its own, nothing on the phone but a viewport, and nothing for
+Android to sign or update. Bundling means the phone runs a real build, and a new build reaches
+it as a new APK.
+
+**Two audiences, two update paths, one manifest.** `useAppUpdate` asks a different question on
+each. A browser asks *is the server's bundle newer than mine* and applies it with a reload. The
+app asks *is there a released APK with a higher `versionCode` than the one installed* — using
+build time there would nag on every web deploy, including ones with no APK behind them, and
+offer an update that cannot be delivered.
+
+The app updates itself in place: `UpdateInstallerPlugin` streams the APK to app-private
+storage, checks it against `apkSha256`, and hands it to Android's own installer. Nothing
+happens silently — the system confirmation screen always appears, and the user must have
+granted *install unknown apps* first, which the banner detects and deep-links to. Whether an
+install completed is not observable from inside the app; the authoritative signal is the
+`versionCode` no longer matching on the next resume.
+
+### The signing key
+
+`~/.ledger-plus/` holds the release keystore and its password. **Back that folder up.** Android
+identifies an app by its signature, so an update only installs over an existing Ledger+ if it
+was signed with the same key. It cannot be regenerated: lose it and every phone with the app
+has to uninstall before it can install again. It is deliberately outside the repo, and
+`npm run release` refuses to publish a debug-signed APK rather than stranding everyone who
+installs it.
 
 **Until they tap it, the old build keeps running.** That is only safe because API changes here
 are additive, which is a rule, not an accident:

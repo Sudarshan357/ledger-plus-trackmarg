@@ -1,9 +1,24 @@
+import { isNative } from '../lib/native';
+
 const TOKEN_KEY = 'ledgerplus.token';
 
-// Empty in both dev (Vite proxies /api to the API process) and production (Express serves the
-// built app from the same origin). Set VITE_API_URL only when the frontend is hosted apart
-// from its API - a phone pointed at a LAN address or a tunnel.
-const BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+/// Where the API lives when this build cannot just ask its own origin.
+///
+/// The Android build is packaged, not served: it runs from a local file origin, so a relative
+/// "/api" would resolve against the app itself and reach nothing. It has to name the deployed
+/// API outright. Overridable at build time for a LAN address or a test tunnel.
+///
+/// Deliberately its own variable rather than reusing VITE_API_URL. An APK build and a web
+/// build come out of the same `vite build`, and baking the absolute address into VITE_API_URL
+/// would leave the dist/ that Express serves pointing every BROWSER at that fixed host too -
+/// which breaks the moment the app is reached by any other name.
+const NATIVE_API = (import.meta.env.VITE_NATIVE_API_URL || 'https://ledger.trackmarg.in').replace(/\/$/, '');
+
+// Empty in both dev (Vite proxies /api to the API process) and production on the web (Express
+// serves the built app from the same origin), so requests stay same-origin and relative.
+// Cross-origin is safe here regardless: auth is a manually-attached Bearer token, never a
+// cookie, so a permissive CORS policy hands out no ambient credentials.
+const BASE = isNative() ? NATIVE_API : (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 export class ApiError extends Error {
   status: number;

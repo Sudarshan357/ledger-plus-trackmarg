@@ -2,6 +2,37 @@ import { useState } from 'react';
 import { CloudUploadIcon } from './Icons';
 import type { UpdateState } from '../lib/version';
 
+/// The one line of status under the button, for the Android flow.
+///
+/// Returns null on the web, where applying an update is a reload: the page is replaced before
+/// any progress could be shown, so inventing phases there would be theatre.
+function statusLine(update: UpdateState): string | null {
+  if (!update.native) return null;
+  switch (update.phase) {
+    case 'permission-needed':
+      return 'Android needs permission to install apps from Ledger+ first.';
+    case 'downloading': {
+      const pct = update.progress?.percent ?? -1;
+      // -1 means the server sent no Content-Length, so a percentage would be a guess.
+      return pct >= 0 ? `Downloading… ${Math.round(pct)}%` : 'Downloading…';
+    }
+    case 'ready-to-install':
+      return 'Downloaded. Confirm the install when Android asks.';
+    case 'error':
+      return update.error ?? 'The update could not be installed.';
+    default:
+      return null;
+  }
+}
+
+function actionLabel(update: UpdateState): string {
+  if (update.phase === 'permission-needed') return 'Allow';
+  if (update.phase === 'downloading') return 'Downloading…';
+  if (update.phase === 'ready-to-install') return 'Install';
+  if (update.phase === 'error') return 'Try again';
+  return 'Update';
+}
+
 /// Two shapes, because an optional update and a mandatory one are different situations.
 ///
 /// Optional is a slim, dismissible bar: the old build still works against the new server, so
@@ -9,8 +40,9 @@ import type { UpdateState } from '../lib/version';
 /// stop, because the running build can no longer talk to this server correctly and letting it
 /// keep trying would produce confusing failures rather than an honest explanation.
 ///
-/// Neither ever reloads on its own. A reload throws away whatever is half-typed in the Add
-/// Transaction form, so it only ever happens on a tap.
+/// Neither ever acts on its own. On the web applying means a reload, which throws away
+/// whatever is half-typed in the Add Transaction form; on Android it means downloading a few
+/// megabytes on someone's mobile data. Both only ever happen on a tap.
 export function UpdateBanner({ update }: { update: UpdateState }) {
   const [dismissed, setDismissed] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -18,6 +50,9 @@ export function UpdateBanner({ update }: { update: UpdateState }) {
   const { release } = update;
   const label = release ? `v${release.versionName}` : null;
   const notes = release?.releaseNotes ?? [];
+  const status = statusLine(update);
+  const busy = update.phase === 'downloading';
+  const onAction = update.phase === 'permission-needed' ? update.openPermissionSettings : update.apply;
 
   if (update.required) {
     return (
@@ -40,9 +75,10 @@ export function UpdateBanner({ update }: { update: UpdateState }) {
               ))}
             </ul>
           )}
-          <button className="btn" onClick={update.apply} style={{ marginTop: 26 }}>
-            Update now
+          <button className="btn" onClick={onAction} disabled={busy} style={{ marginTop: 26 }}>
+            {update.phase === 'error' ? 'Try again' : actionLabel(update)}
           </button>
+          {status && <p className="update-status">{status}</p>}
         </div>
       </div>
     );
@@ -67,17 +103,22 @@ export function UpdateBanner({ update }: { update: UpdateState }) {
             {expanded ? 'Hide' : "What's new"}
           </button>
         )}
-        <button className="update-bar-action" onClick={update.apply}>
-          Update
+        <button className="update-bar-action" onClick={onAction} disabled={busy}>
+          {actionLabel(update)}
         </button>
-        <button
-          className="update-bar-later"
-          onClick={() => setDismissed(true)}
-          aria-label="Dismiss until next time"
-        >
-          Later
-        </button>
+        {/* Dismissing mid-download would leave it running with nothing to show for it. */}
+        {!busy && (
+          <button
+            className="update-bar-later"
+            onClick={() => setDismissed(true)}
+            aria-label="Dismiss until next time"
+          >
+            Later
+          </button>
+        )}
       </div>
+
+      {status && <p className="update-status">{status}</p>}
 
       {expanded && notes.length > 0 && (
         <ul className="update-notes">

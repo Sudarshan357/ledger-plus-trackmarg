@@ -1,41 +1,30 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 /*
- * Ledger+ Android shell.
+ * Ledger+ Android app.
  *
- * This is a THIN shell: the APK carries an icon, a name and a URL, and loads the real app from
- * the server. That is deliberate, and it is what makes "push once, web and app both" actually
- * true - every web deploy reaches the phone the same second, with no new APK, no Play Store
- * review and no reinstall.
+ * The web build in dist/ is packaged INSIDE the APK. There is no server.url: the WebView
+ * never loads a remote page, every screen is a local file, and the only thing that crosses
+ * the network is fetch() to the API - which is what a native app calling a backend does, not
+ * what a browser loading a website does. Same shape as mystio1/excavator-manager.
  *
- * The alternative, packaging the web build inside the APK, would break the update prompt
- * outright: tapping Update calls location.reload(), which on a bundled app reloads the same
- * local file, so the bar would reappear forever with no way to satisfy it. Making updates work
- * from a bundled APK needs the whole native OTA apparatus - signing keystore, release
- * workflow, installer plugin - which is a much larger thing than this.
+ * That is a deliberate trade against the thin shell this replaced. The shell got every web
+ * deploy for free, because it was only ever a URL; the cost was that it WAS only a URL - no
+ * offline shell, no version of its own, nothing on the phone but a viewport. Bundling means
+ * the phone runs a real build that Android can version, sign and update, and it means a new
+ * build reaches the phone as a new APK rather than a page reload. See
+ * android/.../UpdateInstallerPlugin.java for how that update is delivered in-app.
  *
- * The cost is that `server.url` is baked in at build time. It must therefore be a STABLE
- * address: a domain-backed Cloudflare Tunnel, never a throwaway trycloudflare.com URL, which
- * changes on every restart and would leave the APK pointing at nothing.
+ * The API address is baked into the JS at build time by VITE_API_URL (see src/api/client.ts),
+ * not here - the native build has no origin of its own to resolve a relative /api against.
  */
-const SERVER_URL = process.env.LEDGER_APP_URL || 'https://REPLACE-ME.example.com';
-
 const config: CapacitorConfig = {
   appId: 'com.trackmarg.ledgerplus',
   appName: 'Ledger+',
-  // Still required even though the shell loads a remote URL: Capacitor copies this in as the
-  // fallback bundle, and `npx cap sync` fails without it.
   webDir: 'dist',
-  server: {
-    url: SERVER_URL,
-    // HTTPS only. The app carries session tokens and PINs; allowing cleartext would let a
-    // hostile network on a phone read them.
-    cleartext: false,
-    androidScheme: 'https',
-  },
   android: {
-    // The web app already draws its own dark hero and respects the system theme, so the
-    // native splash should not flash white before it appears.
+    // The web app draws its own dark hero and follows the system theme, so the native window
+    // behind it should not flash white on launch.
     backgroundColor: '#0d1117',
   },
 };

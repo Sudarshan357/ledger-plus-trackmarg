@@ -1666,6 +1666,22 @@ textarea.input {
   opacity: 0.92;
 }
 
+/* Android download/install progress. Inherits colour from whichever surface it is on - the
+   primary-filled bar, or the page background on the mandatory screen. */
+.update-status {
+  margin: 0;
+  padding: 0 16px 12px 34px;
+  font-size: 13px;
+  line-height: 1.4;
+  opacity: 0.9;
+}
+
+.update-block .update-status {
+  padding: 14px 0 0;
+  text-align: center;
+  color: var(--text-muted);
+}
+
 /* On the mandatory screen the notes sit on the page background, not on a primary fill. */
 .update-notes--block {
   color: var(--text-muted);

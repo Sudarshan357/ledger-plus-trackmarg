@@ -38,4 +38,10 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Lets the app hand a downloaded APK to Android's own package-installer UI. This is an
+         install-time permission with no runtime prompt, and it does NOT by itself allow
+         installing anything: the user still has to grant "install unknown apps" to this app
+         in system Settings the first time, and then confirm every install on Android's own
+         installer screen. See UpdateInstallerPlugin. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 </manifest>
