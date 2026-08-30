@@ -135,6 +135,16 @@ function loadSigningEnv() {
     const m = line.match(/^\s*(?:export\s+)?([A-Z_]+)="?([^"\n]*)"?\s*$/);
     if (m && m[1].startsWith('ANDROID_')) process.env[m[1]] = m[2];
   }
+
+  // A path written from Git Bash comes out POSIX-style (/c/Users/...). Sourcing the file in
+  // bash hides that, because MSYS rewrites it on the way into a Windows process - but read
+  // here and handed to Gradle directly, it stays POSIX, and Gradle's file() does not see it
+  // as absolute. It then resolves it against the module directory and reports a keystore
+  // missing from a path that never existed.
+  const keystore = process.env.ANDROID_KEYSTORE_PATH;
+  if (keystore) {
+    process.env.ANDROID_KEYSTORE_PATH = keystore.replace(/^\/([a-zA-Z])\//, (_, drive) => `${drive.toUpperCase()}:/`);
+  }
   return Boolean(process.env.ANDROID_KEYSTORE_PATH);
 }
 
