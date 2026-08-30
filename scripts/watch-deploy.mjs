@@ -21,6 +21,7 @@
  */
 import { execSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { EOL } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -36,8 +37,15 @@ function git(args) {
   }).trim();
 }
 
+/// Written synchronously to fd 1 rather than via console.log.
+///
+/// Node block-buffers stdout when it is redirected to a file instead of a terminal, so a
+/// long-running watcher's lines sat unflushed in a 64KB buffer - the log stayed empty through
+/// a deploy that had plainly happened. A log you cannot trust when you are not watching is
+/// worse than no log, because it looks like the watcher is doing nothing.
 function log(message) {
-  console.log(`[${new Date().toLocaleTimeString('en-IN', { hour12: false })}] ${message}`);
+  const at = new Date().toLocaleTimeString('en-IN', { hour12: false });
+  fs.writeSync(1, `[${at}] ${message}${EOL}`);
 }
 
 /// The commit the currently-built bundle was made from. `npm run build` writes this.
