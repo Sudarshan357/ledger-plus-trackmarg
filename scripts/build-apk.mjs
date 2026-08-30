@@ -50,7 +50,11 @@ console.log(`\nBuilding Ledger+ APK against ${APP_URL}\n`);
 if (!fs.existsSync(path.join(root, 'dist'))) run('npm run build');
 
 run('npx cap sync android');
-run('gradlew.bat assembleDebug', path.join(root, 'android'));
+// Absolute path, not the bare name. cmd.exe will not always resolve an executable out of the
+// working directory - `NoDefaultCurrentDirectoryInExePath` turns that off, and it is off on
+// this machine - so `gradlew.bat` alone fails with "not recognized" even standing in android/.
+// cwd still has to be android/, because that is how Gradle finds the project.
+run(`"${path.join(root, 'android', 'gradlew.bat')}" assembleDebug`, path.join(root, 'android'));
 
 const built = path.join(root, 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
 const out = path.join(root, 'ledger-plus.apk');
