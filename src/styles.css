@@ -661,14 +661,6 @@ button {
   margin-top: 10px;
 }
 
-.txn--clickable {
-  cursor: pointer;
-}
-
-.txn--clickable:active {
-  background: var(--surface-sunken);
-}
-
 .txn-badge {
   width: 40px;
   height: 40px;

@@ -17,8 +17,8 @@ export function TransactionRow({
   txn: Transaction;
   canDelete?: boolean;
   onDelete?: () => void;
-  /// Tapping the row opens the edit form. Same reasoning as canDelete: hidden rather than
-  /// offered-and-refused, but the server enforces the real rule either way.
+  /// Shows the pencil button, which opens the edit form. Same reasoning as canDelete: hidden
+  /// rather than offered-and-refused, but the server enforces the real rule either way.
   canEdit?: boolean;
   onEdit?: () => void;
   /// This entry has an edit waiting on the other partner - it still shows its original figures.
@@ -28,21 +28,10 @@ export function TransactionRow({
   tag?: string;
 }) {
   const isIn = txn.type === 'received';
-  const clickable = canEdit && onEdit;
   return (
-    <article
-      className={`txn${clickable ? ' txn--clickable' : ''}`}
-      onClick={clickable ? onEdit : undefined}
-      role={clickable ? 'button' : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      onKeyDown={
-        clickable
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') onEdit();
-            }
-          : undefined
-      }
-    >
+    // Deliberately not clickable itself - editing only opens from the pencil button below, so a
+    // tap anywhere else on the row (scrolling, glancing at a figure) can never open it by accident.
+    <article className="txn">
       <span className={`txn-badge ${isIn ? 'txn-badge--in' : 'txn-badge--out'}`}>
         {isIn ? <ArrowDownIcon size={19} /> : <ArrowUpIcon size={19} />}
       </span>
