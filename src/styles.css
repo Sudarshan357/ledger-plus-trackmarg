@@ -262,14 +262,15 @@ button {
 }
 
 /* Add/Edit Transaction picks up a faint tint of whichever side is selected, reinforcing the
-   Received/Expense choice across the whole form rather than just its own toggle button. Kept
-   deliberately subtle - a wash over the page background, not a colour block. */
+   Received/Expense choice across the whole form rather than just its own toggle button. Runs
+   to the middle of the viewport - short of that and it reads as a stray highlight behind the
+   toggle instead of a deliberate colour for the whole entry. */
 .screen--tint-in {
-  background: linear-gradient(180deg, var(--green-tint) 0%, var(--bg) 220px);
+  background: linear-gradient(180deg, var(--green-tint) 0%, var(--bg) 50vh);
 }
 
 .screen--tint-out {
-  background: linear-gradient(180deg, var(--red-tint) 0%, var(--bg) 220px);
+  background: linear-gradient(180deg, var(--red-tint) 0%, var(--bg) 50vh);
 }
 
 .screen-title {
@@ -750,6 +751,12 @@ button {
   color: var(--red);
 }
 
+.txn-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .icon-button {
   color: var(--text-faint);
   padding: 4px;
@@ -759,6 +766,10 @@ button {
 
 .icon-button:active {
   color: var(--red);
+}
+
+.icon-button--edit:active {
+  color: var(--strong);
 }
 
 /* ── Partner cards ──────────────────────────────────────────────────────── */
@@ -1363,6 +1374,15 @@ textarea.input {
   font-weight: 700;
   text-decoration: underline;
   text-underline-offset: 3px;
+}
+
+/* Add Transaction: the current owner shown as a fixed badge (not a picker - switching goes
+   through Change partner + a confirm sheet, not a direct tap) plus the action that opens it. */
+.owner-display {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
 }
 
 /* Owner picker on Add Transaction. Wider than a plain pill because it carries an avatar, and

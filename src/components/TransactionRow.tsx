@@ -1,6 +1,6 @@
 import { formatDate, formatSigned } from '../lib/format';
 import type { Transaction } from '../lib/types';
-import { ArrowDownIcon, ArrowUpIcon, TrashIcon } from './Icons';
+import { ArrowDownIcon, ArrowUpIcon, EditIcon, TrashIcon } from './Icons';
 
 /// One ledger entry. Received is green with an inbound arrow, expense red with an outbound
 /// one - the colour and the arrow say the same thing twice on purpose, so the row is still
@@ -65,18 +65,32 @@ export function TransactionRow({
         <span className={`txn-amount ${isIn ? 'amount--in' : 'amount--out'}`}>
           {formatSigned(txn.amount, txn.type)}
         </span>
-        {canDelete && onDelete && (
-          <button
-            className="icon-button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            aria-label={`Delete ${txn.category} entry of ${formatSigned(txn.amount, txn.type)}`}
-          >
-            <TrashIcon size={19} />
-          </button>
-        )}
+        <div className="txn-row-actions">
+          {canEdit && onEdit && (
+            <button
+              className="icon-button icon-button--edit"
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+              aria-label={`Edit ${txn.category} entry of ${formatSigned(txn.amount, txn.type)}`}
+            >
+              <EditIcon size={18} />
+            </button>
+          )}
+          {canDelete && onDelete && (
+            <button
+              className="icon-button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              aria-label={`Delete ${txn.category} entry of ${formatSigned(txn.amount, txn.type)}`}
+            >
+              <TrashIcon size={19} />
+            </button>
+          )}
+        </div>
       </div>
     </article>
   );

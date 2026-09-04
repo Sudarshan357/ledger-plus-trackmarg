@@ -4,7 +4,7 @@ import { ApiError } from '../api/client';
 import { useApp } from '../state/AppContext';
 import { categoriesFor } from '../lib/categories';
 import { todayIso } from '../lib/format';
-import { Avatar, ErrorText, PageHead, Spinner } from '../components/ui';
+import { Avatar, ConfirmSheet, ErrorText, PageHead, Spinner } from '../components/ui';
 import { ArrowDownIcon, ArrowUpIcon, CalendarIcon, CheckCircleIcon } from '../components/Icons';
 import type { TxnType } from '../lib/types';
 
@@ -31,6 +31,10 @@ export function AddTransactionScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [sentForApproval, setSentForApproval] = useState(false);
+  // Switching who an entry is for is deliberately not a plain tap - confirming first is the
+  // point, since it is easy to fire off a pill-row tap without meaning to move an entry onto
+  // someone else's side of the books.
+  const [confirmPartnerSwitch, setConfirmPartnerSwitch] = useState(false);
   // Add mode has nothing to wait for. Edit mode fills the fields from `existing` once it is
   // available rather than at mount, so a page refresh landing straight on this URL (the
   // transaction list not loaded yet) still ends up prefilled once it arrives.
@@ -73,6 +77,9 @@ export function AddTransactionScreen() {
   const effectiveOwnerId = ownerId || me.user.id;
   const ownerName =
     me.partners.find((p) => p.userId === effectiveOwnerId)?.name ?? me.user.name;
+  // Who "Change partner" would switch to - the first partner who is not whoever is currently
+  // selected. With the usual two partners that is simply the other one.
+  const switchTarget = me.partners.find((p) => p.userId !== effectiveOwnerId);
 
   // Whether saving now would need the other partner's agreement - informational only, the
   // server enforces the real rule. A solo partnership has nobody to ask, so edits there always
@@ -218,23 +225,22 @@ export function AddTransactionScreen() {
           <div className="field">
             <span className="field-label">Partner</span>
             {/* Whose entry this is. It can be either partner - one person often keeps the books
-                for both - but who actually recorded it is taken from the session and stored
-                alongside, so an entry filed for someone else always shows who filed it. */}
-            <div className="pill-row">
-              {me.partners.map((partner) => {
-                const active = partner.userId === effectiveOwnerId;
-                return (
-                  <button
-                    key={partner.userId}
-                    className={`owner-option${active ? ' owner-option--active' : ''}`}
-                    aria-pressed={active}
-                    onClick={() => setOwnerId(partner.userId)}
-                  >
-                    <Avatar initials={partner.initials} small />
-                    {partner.name}
-                  </button>
-                );
-              })}
+                for both - but switching is behind a confirmation rather than a plain tap, since
+                a stray tap here quietly moves an entry onto someone else's side of the books. */}
+            <div className="owner-display">
+              <span className="owner-option owner-option--active">
+                <Avatar initials={me.partners.find((p) => p.userId === effectiveOwnerId)?.initials ?? '?'} small />
+                {ownerName}
+              </span>
+              {me.partners.length > 1 && (
+                <button
+                  type="button"
+                  className="link-button"
+                  onClick={() => setConfirmPartnerSwitch(true)}
+                >
+                  Change partner
+                </button>
+              )}
             </div>
             {effectiveOwnerId !== me.user.id && (
               <p className="owner-note">
@@ -297,6 +303,25 @@ export function AddTransactionScreen() {
           {busy ? 'Saving…' : isEdit ? 'Save Changes' : 'Save Transaction'}
         </button>
       </div>
+
+      {confirmPartnerSwitch && switchTarget && (
+        <ConfirmSheet
+          title="Change partner?"
+          body={
+            <>
+              This entry will be recorded for <strong>{switchTarget.name}</strong> instead of{' '}
+              <strong>{ownerName}</strong>.
+            </>
+          }
+          confirmLabel="Continue"
+          tone="primary"
+          onConfirm={() => {
+            setOwnerId(switchTarget.userId);
+            setConfirmPartnerSwitch(false);
+          }}
+          onCancel={() => setConfirmPartnerSwitch(false)}
+        />
+      )}
     </>
   );
 }

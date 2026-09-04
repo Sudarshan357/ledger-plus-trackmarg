@@ -79,6 +79,13 @@ export const TrashIcon = (p: IconProps) => (
   </Svg>
 );
 
+export const EditIcon = (p: IconProps) => (
+  <Svg {...p} strokeWidth={1.8}>
+    <path d="M15.7 4.3 19.7 8.3 8.5 19.5 4 20l.5-4.5Z" />
+    <path d="M14 6 18 10" />
+  </Svg>
+);
+
 export const ChevronRightIcon = (p: IconProps) => (
   <Svg {...p} size={p.size ?? 20}>
     <path d="m9 5 7 7-7 7" />
