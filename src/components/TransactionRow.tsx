@@ -9,18 +9,40 @@ export function TransactionRow({
   txn,
   canDelete,
   onDelete,
+  canEdit,
+  onEdit,
+  pendingEdit,
   tag,
 }: {
   txn: Transaction;
   canDelete?: boolean;
   onDelete?: () => void;
+  /// Tapping the row opens the edit form. Same reasoning as canDelete: hidden rather than
+  /// offered-and-refused, but the server enforces the real rule either way.
+  canEdit?: boolean;
+  onEdit?: () => void;
+  /// This entry has an edit waiting on the other partner - it still shows its original figures.
+  pendingEdit?: boolean;
   /// Small marker in the meta line, used when a list mixes sessions and the row would
   /// otherwise look like it belongs to the current one.
   tag?: string;
 }) {
   const isIn = txn.type === 'received';
+  const clickable = canEdit && onEdit;
   return (
-    <article className="txn">
+    <article
+      className={`txn${clickable ? ' txn--clickable' : ''}`}
+      onClick={clickable ? onEdit : undefined}
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') onEdit();
+            }
+          : undefined
+      }
+    >
       <span className={`txn-badge ${isIn ? 'txn-badge--in' : 'txn-badge--out'}`}>
         {isIn ? <ArrowDownIcon size={19} /> : <ArrowUpIcon size={19} />}
       </span>
@@ -34,6 +56,7 @@ export function TransactionRow({
           {txn.recordedOnBehalf && ` · recorded by ${txn.createdByName}`} ·{' '}
           {formatDate(txn.date)}
           {tag && <span className="txn-tag">{tag}</span>}
+          {pendingEdit && <span className="txn-tag txn-tag--pending">Edit pending approval</span>}
         </div>
         {txn.notes && <div className="txn-notes">{txn.notes}</div>}
       </div>
@@ -45,7 +68,10 @@ export function TransactionRow({
         {canDelete && onDelete && (
           <button
             className="icon-button"
-            onClick={onDelete}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
             aria-label={`Delete ${txn.category} entry of ${formatSigned(txn.amount, txn.type)}`}
           >
             <TrashIcon size={19} />

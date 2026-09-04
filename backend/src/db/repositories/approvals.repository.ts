@@ -16,11 +16,12 @@ export function findByIdAndGroup(
 export function create(
   data: {
     groupId: string;
-    kind: 'close_session' | 'amend_settlement' | 'mark_paid';
+    kind: 'close_session' | 'amend_settlement' | 'mark_paid' | 'edit_transaction';
     requestedById: string;
     payload: Prisma.InputJsonValue;
     sessionId?: string | null;
     settlementId?: string | null;
+    transactionId?: string | null;
   },
   client: DbClient = prisma,
 ): Promise<LedgerApproval> {

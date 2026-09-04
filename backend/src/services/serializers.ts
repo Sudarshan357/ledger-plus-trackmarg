@@ -168,13 +168,14 @@ export function serializeApproval(
 ) {
   return {
     id: approval.id,
-    kind: approval.kind as 'close_session' | 'amend_settlement',
+    kind: approval.kind as 'close_session' | 'amend_settlement' | 'mark_paid' | 'edit_transaction',
     status: approval.status,
     requestedById: approval.requestedById,
     requestedByName: names.get(approval.requestedById) ?? 'Former partner',
     requestedAt: approval.requestedAt.toISOString(),
     settlementId: approval.settlementId,
     sessionId: approval.sessionId,
+    transactionId: approval.transactionId,
     payload: approval.payload,
     isMine: approval.requestedById === viewerId,
   };

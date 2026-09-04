@@ -13,7 +13,7 @@ type Scope = 'session' | 'all';
 
 export function LedgerScreen() {
   const navigate = useNavigate();
-  const { me, transactions, deleteTransaction } = useApp();
+  const { me, transactions, pendingApproval, deleteTransaction } = useApp();
 
   const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
   const [partnerFilter, setPartnerFilter] = useState<string>('all');
@@ -284,6 +284,16 @@ export function LedgerScreen() {
               txn.sessionId === me.session.id
             }
             onDelete={() => setPendingDelete(txn)}
+            // Same rule as delete: only the partner who recorded it, or whose entry it is, and
+            // only in the still-open session - a settled one is history.
+            canEdit={
+              (txn.createdById === me.user.id || txn.ownerId === me.user.id) &&
+              txn.sessionId === me.session.id
+            }
+            onEdit={() => navigate(`/add/${txn.id}`)}
+            pendingEdit={
+              pendingApproval?.kind === 'edit_transaction' && pendingApproval.transactionId === txn.id
+            }
           />
         ))
       )}

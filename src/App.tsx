@@ -118,6 +118,7 @@ function Shell() {
         <Route path="/settings" element={<SettingsScreen />} />
 
         <Route path="/add" element={<AddTransactionScreen />} />
+        <Route path="/add/:id" element={<AddTransactionScreen />} />
         <Route path="/settle" element={<RecordSettleScreen />} />
 
         <Route path="/settings/partners" element={<ManagePartnersScreen />} />

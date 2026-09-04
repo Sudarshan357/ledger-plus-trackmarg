@@ -14,8 +14,14 @@ import {
   markSettlementPaid,
   type AmendEntry,
 } from '../services/settlementActions.js';
+import { applyTransactionEdit } from '../services/transactionActions.js';
 import { loadPartners } from '../services/ledgerQueries.js';
-import { serializeApproval, serializeSession, serializeSettlement } from '../services/serializers.js';
+import {
+  serializeApproval,
+  serializeSession,
+  serializeSettlement,
+  serializeTransaction,
+} from '../services/serializers.js';
 import { HttpError } from '../middleware/errorHandler.js';
 import { auth } from '../middleware/auth.js';
 import { actorOf, broadcast } from '../services/sse.js';
@@ -270,6 +276,32 @@ approvalsRouter.post('/:id/approve', async (req, res, next) => {
         return { kind: 'mark_paid' as const, settlement: paid };
       }
 
+      if (approval.kind === 'edit_transaction') {
+        const existing = await transactionsRepo.findByIdAndGroup(approval.transactionId!, groupId, tx);
+        if (!existing || existing.deletedAt) {
+          throw new HttpError(409, 'This entry no longer exists - it may have been deleted since the request.');
+        }
+        const p = (
+          approval.payload as {
+            proposed: { type: 'received' | 'expense'; category: string; amount: string; date: string; notes: string };
+          }
+        ).proposed;
+        // Credited to whoever asked for the change, not whoever agreed to it - same reasoning
+        // as mark_paid: the audit trail should show who actually corrected the entry.
+        const updated = await applyTransactionEdit(
+          groupId, existing,
+          { type: p.type, category: p.category, amount: p.amount, date: new Date(`${p.date}T00:00:00.000Z`), notes: p.notes },
+          actor, tx,
+        );
+        await auditLogsRepo.create({
+          groupId, userId: user.id, userName: user.name,
+          action: 'approval.approved', entityId: approval.id,
+          details: { kind: approval.kind, requestedBy: actor.name },
+        }, tx);
+        const { names } = await loadPartners(groupId, tx);
+        return { kind: 'edit_transaction' as const, transaction: serializeTransaction(updated, names) };
+      }
+
       const p = approval.payload as unknown as AmendEntry & { date: string };
       const updated = await amendSettlement(
         groupId, groupCode, approval.settlementId!,
@@ -284,11 +316,17 @@ approvalsRouter.post('/:id/approve', async (req, res, next) => {
       return { kind: 'amend_settlement' as const, settlement: updated };
     });
 
-    broadcast(groupCode, 'session-changed', { reason: 'approval-approved', actor: actorOf(req) });
+    broadcast(
+      groupCode,
+      result.kind === 'edit_transaction' ? 'ledger-changed' : 'session-changed',
+      { reason: 'approval-approved', actor: actorOf(req) },
+    );
     res.json({
       ok: true,
       kind: result.kind,
-      settlement: serializeSettlement(result.settlement),
+      ...(result.kind === 'edit_transaction'
+        ? { transaction: result.transaction }
+        : { settlement: serializeSettlement(result.settlement) }),
       ...(result.kind === 'close_session' ? { session: serializeSession(result.session) } : {}),
     });
   } catch (err) {

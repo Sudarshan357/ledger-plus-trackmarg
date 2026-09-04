@@ -55,6 +55,14 @@ interface NewTransaction {
   ownerId: string;
 }
 
+interface TransactionEdit {
+  type: TxnType;
+  category: string;
+  amount: number;
+  date: string;
+  notes: string;
+}
+
 interface AppState {
   /// 'booting' until we know whether there is a usable session.
   status: 'booting' | 'signed-out' | 'locked' | 'ready' | 'frozen';
@@ -82,6 +90,9 @@ interface AppState {
   /// Re-checks whether support has lifted a freeze. Safe to call repeatedly.
   retryFrozen: () => Promise<void>;
   addTransaction: (input: NewTransaction) => Promise<void>;
+  /// Resolves to `applied: false` when the entry is more than 10 minutes old and there is a
+  /// partner to ask - the change is then a pending approval, not yet written to the entry.
+  updateTransaction: (id: string, input: TransactionEdit) => Promise<{ applied: boolean }>;
   deleteTransaction: (id: string) => Promise<void>;
 }
 
@@ -436,6 +447,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [loadAll, refuseOffline],
   );
 
+  const updateTransaction = useCallback(
+    async (id: string, input: TransactionEdit) => {
+      refuseOffline();
+      const res = await api<{ applied: boolean; transaction?: Transaction; approvalId?: string }>(
+        `/transactions/${id}`,
+        { method: 'PATCH', body: input },
+      );
+      if (res.applied && res.transaction) {
+        const saved = res.transaction;
+        setTransactions((prev) => prev.map((txn) => (txn.id === id ? saved : txn)));
+      }
+      // Whether applied directly or turned into a pending approval, the figures (or the
+      // approval banner) need to reflect it right away.
+      void loadAll(true);
+      return { applied: res.applied };
+    },
+    [loadAll, refuseOffline],
+  );
+
   const deleteTransaction = useCallback(
     async (id: string) => {
       refuseOffline();
@@ -469,11 +499,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
       retryFrozen,
       addTransaction,
+      updateTransaction,
       deleteTransaction,
     }),
     [
       status, me, overview, transactions, pendingApproval, loading, error, offline, lastSyncedAt,
-      register, login, unlock, lock, logout, loadAll, retryFrozen, addTransaction, deleteTransaction,
+      register, login, unlock, lock, logout, loadAll, retryFrozen, addTransaction, updateTransaction,
+      deleteTransaction,
     ],
   );
 

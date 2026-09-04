@@ -142,17 +142,28 @@ export interface Settlement {
   createdAt: string;
 }
 
-/// A change waiting on the other partner: closing the live session, or adding an entry to an
-/// already-settled one.
+/// One side of an edit_transaction approval's payload - what an entry looked like before, or
+/// what it is being changed to.
+export interface EditSnapshot {
+  type: TxnType;
+  category: string;
+  amount: string;
+  date: string;
+  notes: string;
+}
+
+/// A change waiting on the other partner: closing the live session, adding an entry to an
+/// already-settled one, confirming a payment, or editing an entry more than 10 minutes old.
 export interface PendingApproval {
   id: string;
-  kind: 'close_session' | 'amend_settlement' | 'mark_paid';
+  kind: 'close_session' | 'amend_settlement' | 'mark_paid' | 'edit_transaction';
   status: string;
   requestedById: string;
   requestedByName: string;
   requestedAt: string;
   settlementId: string | null;
   sessionId: string | null;
+  transactionId: string | null;
   payload: {
     sessionSeq?: number;
     transactionCount?: number;
@@ -165,6 +176,8 @@ export interface PendingApproval {
     date?: string;
     notes?: string;
     ownerId?: string;
+    proposed?: EditSnapshot;
+    original?: EditSnapshot;
   };
   /// Resolved server-side, so the UI never has to work out whether to offer
   /// Approve/Reject or Withdraw.

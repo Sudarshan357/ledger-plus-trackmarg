@@ -245,12 +245,18 @@ model LedgerSettlement {
 /// rewrites what the two of them have agreed the money is - so neither happens on one
 /// person's say-so. The requested change is held here as `payload` and is only applied when
 /// the other partner approves; nothing is written to the ledger in the meantime.
+///
+/// An edit to an entry more than 10 minutes old joins the same mechanism (kind
+/// 'edit_transaction') for the same reason: past that point another partner may already be
+/// relying on the figure as recorded, so changing it stops being one person's call. Within the
+/// window, or in a single-member partnership with nobody to ask, an edit is still applied
+/// directly - see backend/src/routes/transactions.routes.ts.
 model LedgerApproval {
   id      String @id @default(cuid())
   groupId String
   group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  /// 'close_session' | 'amend_settlement'
+  /// 'close_session' | 'amend_settlement' | 'mark_paid' | 'edit_transaction'
   kind   String
   /// 'pending' | 'approved' | 'rejected' | 'cancelled'
   status String @default("pending")
@@ -260,12 +266,16 @@ model LedgerApproval {
   decidedById   String?
   decidedAt     DateTime?
 
-  /// What will be done on approval. For an amendment, the entry to add.
+  /// What will be done on approval. For an amendment, the entry to add; for an edit, the
+  /// proposed fields alongside the original ones, so the approval can be shown as a diff.
   payload Json
 
-  /// Whichever the request concerns.
-  sessionId    String?
-  settlementId String?
+  /// Whichever the request concerns. Plain columns, not enforced foreign keys, same as the
+  /// rest of this table - the group scope is what matters, and the referenced row's own
+  /// lifecycle (deleted, settled) is checked when the approval is decided, not here.
+  sessionId     String?
+  settlementId  String?
+  transactionId String?
 
   @@index([groupId, status])
   @@schema("ledger")

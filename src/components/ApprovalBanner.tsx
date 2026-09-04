@@ -36,7 +36,9 @@ export function ApprovalBanner({ approval }: { approval: PendingApproval }) {
       ? `Start a fresh session (close #${String(p.sessionSeq ?? 0).padStart(3, '0')})`
       : approval.kind === 'mark_paid'
         ? `Confirm payment for ${p.settlementLabel ?? 'a settlement'}`
-        : `Add an entry to ${p.settlementLabel ?? 'a settled session'}`;
+        : approval.kind === 'edit_transaction'
+          ? 'Edit an entry'
+          : `Add an entry to ${p.settlementLabel ?? 'a settled session'}`;
 
   const body =
     approval.kind === 'close_session' ? (
@@ -49,6 +51,14 @@ export function ApprovalBanner({ approval }: { approval: PendingApproval }) {
         {approval.requestedByName} says <strong>{formatRupees(Number(p.amount ?? 0))}</strong> has
         been paid from {p.fromUserName} to {p.toUserName}. Approving records that the money
         actually changed hands.
+      </>
+    ) : approval.kind === 'edit_transaction' ? (
+      <>
+        {p.original?.category} · <strong>{formatRupees(Number(p.original?.amount ?? 0))}</strong>{' '}
+        on {p.original?.date} will change to {p.proposed?.type === 'received' ? 'Received' : 'Expense'}{' '}
+        · {p.proposed?.category} ·{' '}
+        <strong>{formatRupees(Number(p.proposed?.amount ?? 0))}</strong> on {p.proposed?.date}
+        {p.proposed?.notes ? ` — ${p.proposed.notes}` : ''}.
       </>
     ) : (
       <>

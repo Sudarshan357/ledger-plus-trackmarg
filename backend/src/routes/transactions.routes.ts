@@ -1,17 +1,33 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { transaction, prisma } from '../db/prisma.js';
 import * as transactionsRepo from '../db/repositories/transactions.repository.js';
 import * as ledgerSessionsRepo from '../db/repositories/ledgerSessions.repository.js';
 import * as auditLogsRepo from '../db/repositories/auditLogs.repository.js';
 import * as membersRepo from '../db/repositories/members.repository.js';
+import * as approvalsRepo from '../db/repositories/approvals.repository.js';
 import { isValidCategory, type TransactionType } from '../services/categories.js';
 import { serializeSession, serializeTransaction, serializeSettlementComputation } from '../services/serializers.js';
 import { loadActiveSnapshot, loadPartners } from '../services/ledgerQueries.js';
+import { applyTransactionEdit } from '../services/transactionActions.js';
 import { HttpError } from '../middleware/errorHandler.js';
 import { auth } from '../middleware/auth.js';
 import { actorOf, broadcast } from '../services/sse.js';
 
 export const transactionsRouter = Router();
+
+// An entry can be corrected freely for a little while after it is typed - a wrong digit
+// noticed a moment later is not a dispute. Past this window, another partner may already be
+// relying on the figure as recorded, so an edit needs their agreement, the same as closing a
+// session or amending a settled one does. A single-member partnership has nobody to ask, so it
+// is exempt below, same as the other approval-gated actions.
+const EDIT_WINDOW_MS = 10 * 60 * 1000;
+
+async function assertNoPending(groupId: string): Promise<void> {
+  if (await approvalsRepo.findPending(groupId)) {
+    throw new HttpError(409, 'There is already a request waiting for a decision.');
+  }
+}
 
 // Decimal(14,2) tops out at 999,999,999,999.99. Rejecting oversize amounts here gives a clear
 // message instead of a database overflow error surfacing as a 500.
@@ -190,6 +206,11 @@ transactionsRouter.post('/', async (req, res, next) => {
 });
 
 // ── UPDATE (own transactions only) ──────────────────────────────────────────
+//
+// Within EDIT_WINDOW_MS of being recorded, or in a partnership with nobody else to ask, an
+// edit applies immediately - exactly as it always has. Past the window, the change is held as
+// a pending approval instead: nothing is written to the transaction until the other partner
+// agrees, same as an amendment to a settled session.
 transactionsRouter.patch('/:id', async (req, res, next) => {
   try {
     const { user, groupId, groupCode } = auth(req);
@@ -205,39 +226,57 @@ transactionsRouter.patch('/:id', async (req, res, next) => {
     const type = body.type === undefined ? (existing.type as TransactionType) : parseType(body.type);
     const category = body.category === undefined ? existing.category : String(body.category || '').trim();
     if (!isValidCategory(type, category)) throw new HttpError(400, 'Choose a valid category');
+    const amount = body.amount === undefined ? existing.amount.toFixed(2) : parseAmount(body.amount);
+    const date = body.date === undefined ? existing.date : parseDate(body.date);
+    const notes = body.notes === undefined ? existing.notes : parseNotes(body.notes);
 
-    const updated = await transaction(async (tx) => {
-      const row = await transactionsRepo.update(
-        existing.id,
-        {
-          type,
-          category,
-          ...(body.amount === undefined ? {} : { amount: parseAmount(body.amount) }),
-          ...(body.date === undefined ? {} : { date: parseDate(body.date) }),
-          ...(body.notes === undefined ? {} : { notes: parseNotes(body.notes) }),
-          updatedById: user.id,
-        },
-        tx,
+    const withinFreeWindow = Date.now() - existing.createdAt.getTime() < EDIT_WINDOW_MS;
+    const memberCount = await membersRepo.countByGroup(groupId);
+
+    if (withinFreeWindow || memberCount < 2) {
+      const updated = await transaction((tx) =>
+        applyTransactionEdit(groupId, existing, { type, category, amount, date, notes }, { id: user.id, name: user.name }, tx),
       );
-      await auditLogsRepo.create(
-        {
-          groupId,
-          sessionId: existing.sessionId,
-          userId: user.id,
-          userName: user.name,
-          action: 'transaction.updated',
-          entityId: row.id,
-          details: { type: row.type, category: row.category, amount: row.amount.toFixed(2) },
+      const { names } = await loadPartners(groupId);
+      broadcast(groupCode, 'ledger-changed', { reason: 'updated', id: updated.id, actor: actorOf(req) });
+      return res.json({ applied: true, transaction: serializeTransaction(updated, names) });
+    }
+
+    await assertNoPending(groupId);
+    const approval = await approvalsRepo.create({
+      groupId,
+      kind: 'edit_transaction',
+      requestedById: user.id,
+      transactionId: existing.id,
+      payload: {
+        proposed: { type, category, amount, date: date.toISOString().slice(0, 10), notes },
+        original: {
+          type: existing.type,
+          category: existing.category,
+          amount: existing.amount.toFixed(2),
+          date: existing.date.toISOString().slice(0, 10),
+          notes: existing.notes,
         },
-        tx,
-      );
-      return row;
+      },
+    });
+    await auditLogsRepo.create({
+      groupId,
+      sessionId: existing.sessionId,
+      userId: user.id,
+      userName: user.name,
+      action: 'approval.requested',
+      entityId: approval.id,
+      details: { kind: 'edit_transaction', transactionId: existing.id },
     });
 
-    const { names } = await loadPartners(groupId);
-    broadcast(groupCode, 'ledger-changed', { reason: 'updated', id: updated.id, actor: actorOf(req) });
-    res.json({ transaction: serializeTransaction(updated, names) });
+    // The other partner's device needs to surface the request without a manual refresh.
+    broadcast(groupCode, 'ledger-changed', { reason: 'approval-requested', actor: actorOf(req) });
+    res.status(202).json({ applied: false, approvalId: approval.id });
   } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      next(new HttpError(409, 'There is already a request waiting for a decision.'));
+      return;
+    }
     next(err);
   }
 });

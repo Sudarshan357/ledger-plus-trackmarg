@@ -261,6 +261,17 @@ button {
   padding-bottom: calc(var(--safe-bottom) + 28px);
 }
 
+/* Add/Edit Transaction picks up a faint tint of whichever side is selected, reinforcing the
+   Received/Expense choice across the whole form rather than just its own toggle button. Kept
+   deliberately subtle - a wash over the page background, not a colour block. */
+.screen--tint-in {
+  background: linear-gradient(180deg, var(--green-tint) 0%, var(--bg) 220px);
+}
+
+.screen--tint-out {
+  background: linear-gradient(180deg, var(--red-tint) 0%, var(--bg) 220px);
+}
+
 .screen-title {
   font-size: 34px;
   font-weight: 800;
@@ -649,6 +660,14 @@ button {
   margin-top: 10px;
 }
 
+.txn--clickable {
+  cursor: pointer;
+}
+
+.txn--clickable:active {
+  background: var(--surface-sunken);
+}
+
 .txn-badge {
   width: 40px;
   height: 40px;
@@ -694,6 +713,11 @@ button {
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 700;
+}
+
+.txn-tag--pending {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
 }
 
 .txn-notes {
@@ -1057,6 +1081,34 @@ textarea.input {
   font-size: 13px;
   color: var(--text-muted);
   margin-top: 8px;
+}
+
+/* Add/Edit Transaction: how much longer an edit is free, or that it no longer is. */
+.edit-window-note {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  margin-bottom: 18px;
+}
+
+.edit-window-note--warn {
+  color: var(--warn-fg);
+  background: var(--warn-bg);
+}
+
+.edit-sent-title {
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.edit-sent-body {
+  color: var(--text-muted);
+  font-size: 15px;
+  margin-top: 8px;
+  line-height: 1.5;
 }
 
 .error-text {
