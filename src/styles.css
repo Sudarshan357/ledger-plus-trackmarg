@@ -1234,6 +1234,10 @@ textarea.input {
   padding: 28px 22px calc(28px + var(--safe-bottom));
   max-width: var(--shell);
   margin: 0 auto;
+  background: var(--bg);
+  /* Matches .shell: on a desktop window the phone-width column would otherwise float in a
+     void, same as it would if this had drifted out of sync with the rest of the app. */
+  box-shadow: 0 0 0 1px var(--border);
 }
 
 .auth-logo {
