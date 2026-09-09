@@ -11,6 +11,7 @@ import {
   CloudUploadIcon,
   FileIcon,
   GridIcon,
+  HomeIcon,
   KeyIcon,
   LockIcon,
   LogoutIcon,
@@ -19,6 +20,12 @@ import {
   TrashIcon,
 } from '../components/Icons';
 import type { ExportBundle } from '../lib/types';
+
+/// Where "Exit to TrackMarg" goes. Overridable per-build via VITE_TRACKMARG_URL (same pattern
+/// as VITE_API_URL) so this can be pointed at the real hub the moment it has a home, with no
+/// code change - just a new build. Until then this is a placeholder: trackmarg.in currently
+/// serves an unrelated, older marketing page, not the multi-system hub this links back to.
+const TRACKMARG_HUB_URL = import.meta.env.VITE_TRACKMARG_URL || 'https://trackmarg.in';
 
 export function SettingsScreen() {
   const navigate = useNavigate();
@@ -151,6 +158,22 @@ export function SettingsScreen() {
             </span>
           </div>
         </div>
+      </div>
+
+      <SectionLabel>TrackMarg</SectionLabel>
+      <div className="card-list">
+        <Row
+          icon={<HomeIcon size={21} />}
+          label="Exit to TrackMarg"
+          onClick={() => {
+            // Opened as a new context, not by replacing this one. The Android build bundles
+            // its own UI and draws no browser chrome, so assigning location.href would leave
+            // someone parked on a web page inside Ledger+ with no back button and no way out
+            // but force-quitting the app. `_blank` hands it to the system browser on native
+            // and opens a tab on the web, and Ledger+ stays where it was in both.
+            window.open(TRACKMARG_HUB_URL, '_blank', 'noopener,noreferrer');
+          }}
+        />
       </div>
 
       <SectionLabel>Account / Partners</SectionLabel>

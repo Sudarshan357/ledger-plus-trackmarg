@@ -304,7 +304,7 @@ button {
   padding: 16px;
 }
 
-.card + .card {
+.card+.card {
   margin-top: 12px;
 }
 
@@ -326,7 +326,7 @@ button {
   background: var(--surface);
 }
 
-.row + .row {
+.row+.row {
   border-top: 1px solid var(--border);
 }
 
@@ -381,14 +381,12 @@ button {
   position: absolute;
   inset: -40% -10% auto -10%;
   height: 180%;
-  background: linear-gradient(
-    103deg,
-    rgba(255, 255, 255, 0) 34%,
-    rgba(255, 255, 255, 0.09) 46%,
-    rgba(255, 255, 255, 0.02) 52%,
-    rgba(255, 255, 255, 0.07) 62%,
-    rgba(255, 255, 255, 0) 74%
-  );
+  background: linear-gradient(103deg,
+      rgba(255, 255, 255, 0) 34%,
+      rgba(255, 255, 255, 0.09) 46%,
+      rgba(255, 255, 255, 0.02) 52%,
+      rgba(255, 255, 255, 0.07) 62%,
+      rgba(255, 255, 255, 0) 74%);
   pointer-events: none;
 }
 
@@ -657,7 +655,7 @@ button {
   padding: 13px 14px;
 }
 
-.txn + .txn {
+.txn+.txn {
   margin-top: 10px;
 }
 
@@ -926,7 +924,7 @@ button {
   gap: 10px;
 }
 
-.btn-row > * {
+.btn-row>* {
   flex: 1;
 }
 
@@ -1274,6 +1272,7 @@ textarea.input {
   .spinner {
     animation-duration: 2s;
   }
+
   .fab:active {
     transform: none;
   }
@@ -1289,10 +1288,53 @@ textarea.input {
   padding: 28px 22px calc(28px + var(--safe-bottom));
   max-width: var(--shell);
   margin: 0 auto;
-  background: var(--bg);
+  /* Deliberately NOT background-attachment: fixed. Fixed sizes the image to the viewport
+     while the ::before overlay covers the ELEMENT, and the auth screens are not all one
+     screen tall - the PIN keypad and the sign-up form both scroll. Below the fold you would
+     get overlay with no photo behind it (a black band) and the photo sliding against the
+     content as it scrolled. Scrolling with the element crops tighter on the tall steps and
+     is correct on all of them. */
+  background: url('/login-bg.jpg') center / cover no-repeat;
   /* Matches .shell: on a desktop window the phone-width column would otherwise float in a
      void, same as it would if this had drifted out of sync with the rest of the app. */
   box-shadow: 0 0 0 1px var(--border);
+  position: relative;
+  z-index: 0;
+
+  /* Pinned light-on-dark, in BOTH themes - the same treatment .frozen gets, and for the same
+     reason: this surface is a dark photograph, so it is not a themeable surface at all.
+     Without this the screen inverts in light mode - --text is #111827 there, which is
+     near-black type on a 72%-darkened photo, and the two buttons swap so the primary goes
+     dark navy and the ghost goes white.
+     Set as tokens rather than per-rule overrides so everything inside picks them up:
+     the buttons, the inputs, the keypad, the PIN dots, the error text, the links. */
+  color-scheme: dark;
+  --primary: #e9edf5;
+  --on-primary: #0d1117;
+  --strong: #e6edf3;
+  --text: #e6edf3;
+  --text-muted: #98a4b3;
+  --text-faint: #6e7c8c;
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface-sunken: #1c232d;
+  --track: #1c232d;
+  --avatar-bg: #273041;
+  --border: #232b36;
+  --border-strong: #303a48;
+  --red: #f85149;
+  --red-tint: rgba(248, 81, 73, 0.16);
+  --green: #3fb950;
+  --green-tint: rgba(63, 185, 80, 0.16);
+}
+
+/* Dark overlay so text stays readable on top of the background photo */
+.auth::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: -1;
 }
 
 .auth-logo {
@@ -1783,3 +1825,25 @@ textarea.input {
 .offline-text {
   flex: 1;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   MOBILE / DESKTOP BOUNDARY
+   ══════════════════════════════════════════════════════════════════════════
+
+   Everything ABOVE this line is the mobile layout, and it is the base: not one rule up there
+   is inside a width media query. That is the whole guarantee that the two cannot merge - a
+   rule with no width condition applies at every width, so mobile can only ever be changed by
+   editing it directly, never as a side effect of desktop work.
+
+   Desktop and laptop styles therefore go BELOW, and only ever inside `@media (min-width: …)`.
+   Never `max-width`: a max-width block is a rule that fires on phones, which is precisely how
+   a desktop change ends up altering the login screen someone signed off from a screenshot.
+
+   Two things follow from this, worth stating because they are easy to get wrong later:
+
+   - Do not widen `--shell` globally to make desktop roomier. It is read by .shell, .auth and
+     .support alike, so a global change reshapes the phone layout too. Override it inside the
+     min-width block instead.
+   - .auth pins its own light-on-dark palette (see that rule). A desktop login composition
+     must keep doing so, or it inverts in light mode - the exact bug that shipped once already.
+*/
