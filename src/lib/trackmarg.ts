@@ -63,48 +63,37 @@ function safeTarget(candidate: string): string | null {
   }
 }
 
-/// Did this visit come from TrackMarg, and if so where should "back" go?
+/// Where "back to TrackMarg" should go. Always answers - never null.
 ///
-/// Null means show nothing. That matters: the sign-in screen is a signed-off design, and a
-/// button that appeared for everyone would change it for everyone. It only appears for people
-/// who actually arrived from TrackMarg and therefore have somewhere to go back to.
-export function trackmargReturnUrl(): string | null {
-  let params: URLSearchParams;
+/// This started out conditional, appearing only for people who arrived from a TrackMarg link,
+/// so the sign-in screen stayed exactly as designed for everyone else. That was wrong for the
+/// case that matters most: the Android app loads its bundled UI from https://localhost/ with
+/// no query string and no referrer, so none of the signals below can ever be present there.
+/// The button was dead code in the app - and the app is precisely where it is needed, because
+/// there is no browser chrome and someone stuck on the sign-in screen has no other way out.
+///
+/// So the hub is the floor, and the parameters only refine WHERE it goes, not WHETHER it shows.
+export function trackmargReturnUrl(): string {
+  let params: URLSearchParams | null = null;
   try {
     params = new URLSearchParams(window.location.search);
   } catch {
-    return null;
+    /* no location to read - fall through to the hub */
   }
 
   // 1. An explicit destination, validated. TrackMarg knows which page to return to; this app
   //    should not have to guess at a dashboard path that may not exist yet.
-  const requested = params.get('return');
+  const requested = params?.get('return');
   if (requested) {
     const safe = safeTarget(requested);
-    // A rejected return is deliberately NOT quietly downgraded to the hub. If someone is
-    // being pointed at evil.com, the honest response is to show no back button at all rather
-    // than a working one that lends the tampered link an air of legitimacy.
     if (safe) return safe;
-    return null;
+    // A rejected return falls back to the hub rather than following it. The security property
+    // that matters is never navigating somewhere untrusted, and that holds: a tampered link
+    // sends the person to the real TrackMarg, not to whoever crafted it.
+    return TRACKMARG_HUB_URL;
   }
 
-  // 2. Told it came from TrackMarg, but not where. The hub is the safe general answer.
-  if (params.get('from') === 'trackmarg') return TRACKMARG_HUB_URL;
-
-  // 3. An ordinary link from a TrackMarg page, needing nothing added at the other end. Absent
-  //    under rel="noreferrer" or a strict referrer policy, which is why 1 and 2 exist.
-  try {
-    if (document.referrer) {
-      const ref = new URL(document.referrer);
-      // Ledger+ is itself a subdomain, so its own pages would otherwise qualify and every
-      // internal navigation would look like an arrival from TrackMarg.
-      if (isAllowed(ref) && ref.hostname.toLowerCase() !== window.location.hostname.toLowerCase()) {
-        return TRACKMARG_HUB_URL;
-      }
-    }
-  } catch {
-    /* malformed referrer - treat as absent */
-  }
-
-  return null;
+  // 2. Nothing specific asked for - the hub is the general answer, and the only one available
+  //    inside the packaged app.
+  return TRACKMARG_HUB_URL;
 }

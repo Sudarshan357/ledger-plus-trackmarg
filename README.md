@@ -147,30 +147,32 @@ reloads only when the user taps it, never on its own, so nothing half-typed is t
 
 ## Coming from TrackMarg
 
-Ledger+ is one system reached from a TrackMarg link, so someone who arrives that way gets a
-**Back to TrackMarg** control on the sign-in and lock screens. It appears *only* for people who
-actually arrived from TrackMarg — the sign-in screen is a signed-off design, and a button shown
-to everyone would change it for everyone, including people who opened the app directly and have
-nowhere to go back to.
+Ledger+ is one system in the TrackMarg family, so the sign-in and lock screens carry a
+**Back to TrackMarg** control.
 
-TrackMarg says where "back" goes, because only TrackMarg knows:
+It is always shown. It began conditional — only for people who arrived from a TrackMarg link —
+which looked like the careful choice and was wrong where it counted: the packaged Android app
+loads its bundled UI from `https://localhost/` with no query string and no referrer, so the
+condition could never be true there. That made it dead code in the one place it matters most,
+because the app draws no browser chrome and someone on the sign-in screen with a forgotten PIN
+has no other way out.
+
+TrackMarg can still say *where* back goes — the parameter refines the destination, never
+whether the button appears:
 
 ```
 https://ledger.trackmarg.in/?return=https://trackmarg.in/dashboard   a specific page
-https://ledger.trackmarg.in/?from=trackmarg                          the hub
-https://ledger.trackmarg.in/                                         also works, via the referrer
+https://ledger.trackmarg.in/                                         the hub
 ```
 
-The third needs no change at TrackMarg's end at all; the first two exist because a referrer is
-absent under `rel="noreferrer"` or a strict referrer policy.
 
 `return` is checked against an allowlist — the host of `VITE_TRACKMARG_URL` and its subdomains,
 https only. **This is the whole security surface of the feature.** An unvalidated `return` is an
 open redirect, and an open redirect on a sign-in screen is the most valuable kind: the victim
 follows a link on the real ledger.trackmarg.in, sees the real sign-in page, taps a button
 reading "Back to TrackMarg" and lands on an attacker's copy — having just been taught that this
-exact flow is normal. A rejected `return` shows **no button**, rather than quietly falling back
-to the hub, so a tampered link never produces a working control that makes it look fine.
+exact flow is normal. A rejected `return` falls back to the real hub rather than being followed, so a
+tampered link can never send someone somewhere untrusted.
 `src/lib/trackmarg.test.ts` covers the lookalikes: `//evil.com`, `trackmarg.in.evil.com`,
 `eviltrackmarg.in`, `https://trackmarg.in@evil.com`, `javascript:`.
 
