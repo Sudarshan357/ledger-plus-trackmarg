@@ -19,13 +19,9 @@ import {
   RestoreIcon,
   TrashIcon,
 } from '../components/Icons';
+import { TRACKMARG_HUB_URL } from '../lib/trackmarg';
 import type { ExportBundle } from '../lib/types';
 
-/// Where "Exit to TrackMarg" goes. Overridable per-build via VITE_TRACKMARG_URL (same pattern
-/// as VITE_API_URL) so this can be pointed at the real hub the moment it has a home, with no
-/// code change - just a new build. Until then this is a placeholder: trackmarg.in currently
-/// serves an unrelated, older marketing page, not the multi-system hub this links back to.
-const TRACKMARG_HUB_URL = import.meta.env.VITE_TRACKMARG_URL || 'https://trackmarg.in';
 
 export function SettingsScreen() {
   const navigate = useNavigate();

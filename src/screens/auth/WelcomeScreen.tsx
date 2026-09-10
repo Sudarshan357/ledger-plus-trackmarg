@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useApp } from '../../state/AppContext';
 import { ErrorText } from '../../components/ui';
+import { BackToTrackmarg } from '../../components/BackToTrackmarg';
 import { PinDots, PinPad } from './PinPad';
 
 type Mode = 'choose' | 'create' | 'join' | 'login';
@@ -74,6 +75,7 @@ export function WelcomeScreen() {
   if (mode === 'choose') {
     return (
       <div className="auth">
+        <BackToTrackmarg />
         <h1 className="auth-logo">Ledger+</h1>
         <p className="auth-tag">Partnership accounting, powered by Trackmarg.</p>
 
@@ -121,6 +123,7 @@ export function WelcomeScreen() {
 
     return (
       <div className="auth">
+        <BackToTrackmarg />
         <h1 style={{ fontSize: 26, fontWeight: 800, margin: 0 }}>{title}</h1>
         <p className="auth-tag" style={{ marginBottom: 0 }}>
           {mode === 'login'
@@ -164,6 +167,7 @@ export function WelcomeScreen() {
 
   return (
     <div className="auth">
+        <BackToTrackmarg />
       <h1 style={{ fontSize: 28, fontWeight: 800, margin: '0 0 4px' }}>{heading}</h1>
       <p className="auth-tag">
         {mode === 'create'

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ApiError } from '../../api/client';
 import { useApp } from '../../state/AppContext';
 import { ErrorText } from '../../components/ui';
+import { BackToTrackmarg } from '../../components/BackToTrackmarg';
 import { PinDots, PinPad } from './PinPad';
 
 /// Shown on every launch and whenever Lock App is used. No ledger figure is rendered behind
@@ -29,6 +30,7 @@ export function LockScreen() {
 
   return (
     <div className="auth">
+      <BackToTrackmarg />
       <h1 className="auth-logo">Ledger+</h1>
       <p className="auth-tag">Enter your PIN to unlock.</p>
 

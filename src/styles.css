@@ -1826,6 +1826,36 @@ textarea.input {
   flex: 1;
 }
 
+/* The way back to TrackMarg, for someone who arrived from a TrackMarg link.
+   Absolutely positioned rather than in the flow: .auth centres its children, so a new first
+   child would push the whole signed-off stack - title, tagline, both buttons, the sign-in
+   line - down by its own height. This floats above it and moves nothing.
+   Colours come from the pinned .auth palette above, so it reads correctly on the photo in
+   both themes without stating a colour of its own. */
+.auth-back {
+  position: absolute;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  left: 14px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 14px 8px 8px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  /* Padding alone leaves this under the 44px minimum on a phone. */
+  min-height: 40px;
+}
+
+.auth-back:active {
+  background: rgba(255, 255, 255, 0.2);
+}
+
 /* ══════════════════════════════════════════════════════════════════════════
    MOBILE / DESKTOP BOUNDARY
    ══════════════════════════════════════════════════════════════════════════
